@@ -1,0 +1,73 @@
+# root.kv — RubikonApp
+# Изменение от 2026-09-06 (одно-единственное, остальное не тронуто):
+#   MDNavigationBar добавлен md_bg_color: 1, 1, 1, 1 (белый).
+#
+# ЗАЧЕМ: панель навигации internally красится через
+# theme_cls.backgroundColor, который в сборке KivyMD 2.0.1.dev0
+# на машинах пользователя разрешается в ЧЁРНЫЙ — панель была чёрной.
+# Явный белый делает её белой, как остальные экраны.
+
+MDBoxLayout:
+    orientation: "vertical"
+
+    ScreenManager:
+        id: screen_manager
+
+        SplashScreen:
+            name: "splash"
+
+        CatalogScreen:
+            name: "catalog"
+
+        DrugDetailScreen:
+            name: "drug_detail"
+
+        ProfileScreen:
+            name: "profile"
+
+        CalculatorScreen:
+            name: "calculator"
+
+        CalendarScreen:
+            name: "calendar"
+
+        PetFormScreen:
+            name: "pet_form"
+
+    MDNavigationBar:
+        id: nav_bar
+        md_bg_color: 1, 1, 1, 1
+        on_switch_tabs: app.on_switch_tabs(*args)
+
+        MDNavigationItem:
+            active: True
+
+            MDNavigationItemIcon:
+                icon: "magnify"
+
+            MDNavigationItemLabel:
+                text: "Каталог"
+
+        MDNavigationItem:
+
+            MDNavigationItemIcon:
+                icon: "account"
+
+            MDNavigationItemLabel:
+                text: "Профиль"
+
+        MDNavigationItem:
+
+            MDNavigationItemIcon:
+                icon: "calculator"
+
+            MDNavigationItemLabel:
+                text: "Калькулятор"
+
+        MDNavigationItem:
+
+            MDNavigationItemIcon:
+                icon: "calendar"
+
+            MDNavigationItemLabel:
+                text: "Календарь"

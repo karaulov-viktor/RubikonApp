@@ -1,0 +1,28 @@
+#:import my_hex kivy.utils.get_color_from_hex
+
+<SplashScreen>:
+    md_bg_color: my_hex('#177300')
+
+    Image:
+        source: 'img/logo.png'
+        size_hint: (None, None)
+        size: (200, 200)
+        pos_hint: {'center_x': 0.5, 'center_y': 0.55}
+
+    MDLabel:
+        text: "Рубиконт-Агент"
+        halign: "center"
+        theme_text_color: "Custom"
+        text_color: "#ffffff"
+        font_style: "Headline"
+        role: "large"
+        pos_hint: {'center_x': 0.5, 'center_y': 0.35}
+
+    MDLabel:
+        text: "Ветеринарный помощник"
+        halign: "center"
+        theme_text_color: "Custom"
+        text_color: "#ffffff"
+        font_style: "Title"
+        role: "medium"
+        pos_hint: {"center_x": 0.5, "center_y": 0.28}

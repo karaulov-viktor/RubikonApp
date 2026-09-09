@@ -1,0 +1,189 @@
+# Карточка препарата — RubikonApp
+# Спринт 2: красивое отображение инструкции с Kivy-разметкой.
+#
+# ВАЖНО (правила проекта):
+#   - только ПРОБЕЛЫ, 4 пробела на уровень вложенности (табы запрещены!)
+#   - сохранены ВСЕ прежние id: drug_image, drug_name, drug_category,
+#     drug_description, drug_instruction (drug_detail.py совместим)
+#   - добавлены только id detail_scroll и calc_button
+#   - name: "drug_detail" — на случай, если root.kv не задаёт имя экрана;
+#     если задаёт, значение то же самое — конфликта нет
+#
+# ЦВЕТА (по замечанию пользователя: шапка и фон должны быть БЕЛЫМИ):
+#   - фон экрана: явный белый 1,1,1,1 через canvas.before. НЕ используем
+#     app.theme_cls.backgroundColor — в сборке KivyMD 2.0.1.dev0 на машинах
+#     пользователя он разрешается в ЧЁРНЫЙ (так же чернела и нижняя панель);
+#   - шапка: белая, тёмные текст и стрелка (как было в самом первом
+#     drug_detail.kv «О препарате»);
+#   - акценты (заголовки секций, кнопка, цвета разметки) — зелёные #177300.
+#
+# Кнопка «Рассчитать дозу»: в старом kv она вызывала app.calculate_dose() —
+# заглушку из main.py, которая только печатает текст в консоль. Теперь
+# кнопка реально переключает на экран калькулятора (root.manager.current).
+
+<DrugDetailScreen>
+    name: "drug_detail"
+    # Явный белый фон, рисуется ПОД содержимым (canvas.before).
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    MDBoxLayout:
+        orientation: "vertical"
+
+        # ----------------------------------------------------------
+        # Шапка — БЕЛАЯ, тёмные текст и стрелка, снизу тонкая линия
+        # ----------------------------------------------------------
+        MDBoxLayout:
+            orientation: "horizontal"
+            adaptive_height: True
+            padding: dp(8), dp(6)
+            spacing: dp(4)
+            md_bg_color: 1, 1, 1, 1
+
+            MDIconButton:
+                icon: "arrow-left"
+                icon_color: 0.13, 0.13, 0.13, 1
+                pos_hint: {"center_y": 0.5}
+                on_release: root.go_back()
+
+            MDLabel:
+                text: "Карточка препарата"
+                font_style: "Title"
+                adaptive_height: True
+                theme_text_color: "Custom"
+                text_color: 0.13, 0.13, 0.13, 1
+                pos_hint: {"center_y": 0.5}
+
+        MDDivider:
+            size_hint_y: None
+            height: dp(1)
+
+        # ----------------------------------------------------------
+        # Содержимое (прокручивается)
+        # ----------------------------------------------------------
+        ScrollView:
+            id: detail_scroll
+
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                padding: dp(16)
+                spacing: dp(14)
+
+                # Фото препарата
+                MDBoxLayout:
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: dp(220)
+                    md_bg_color: 0.97, 0.97, 0.97, 1
+                    radius: [dp(12)]
+
+                    Image:
+                        id: drug_image
+                        source: ""
+                        fit_mode: "contain"   # фото не режем (правило BUG-4)
+                        size_hint: 1, 1
+
+                # Название и категория
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(2)
+
+                    MDLabel:
+                        id: drug_name
+                        text: ""
+                        font_style: "Headline"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.13, 0.13, 0.13, 1
+
+                    MDLabel:
+                        id: drug_category
+                        text: ""
+                        font_style: "Body"
+                        role: "small"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.45, 0.45, 0.45, 1
+
+                # --------------------------------------------------
+                # Описание
+                # --------------------------------------------------
+
+                # --------------------------------------------------
+                # Инструкция (разметка из БД: [b], [color], «•», \n)
+                # --------------------------------------------------
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(6)
+                    md_bg_color: 0.937, 0.961, 0.898, 1
+                    radius: [dp(12)]
+                    padding: dp(14)
+
+                    MDLabel:
+                        id: drug_instruction
+                        text: ""
+                        markup: True
+                        font_style: "Body"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.18, 0.18, 0.18, 1
+
+                # --------------------------------------------------
+                # Кнопка «Рассчитать дозу» — переход на экран калькулятора.
+                # Раньше кнопка дёргала заглушку app.calculate_dose() из
+                # main.py (только print). Теперь — реальная навигация.
+                # --------------------------------------------------
+                MDButton:
+                    id: calc_button
+                    style: "filled"
+                    # Custom — иначе стиль "filled" игнорирует md_bg_color
+                    # и красит кнопку цветом темы (см. button.kv KivyMD)
+                    theme_bg_color: "Custom"
+                    md_bg_color: 0.0902, 0.451, 0.0, 1
+                    on_release: root.manager.current = "calculator"
+
+                    MDButtonIcon:
+                        icon: "calculator"
+                        icon_color: 1, 1, 1, 1
+
+                    MDButtonText:
+                        text: "Рассчитать дозу"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+
+                # --------------------------------------------------
+                # Дисклеймер (юридическая подушка — см. обсуждение
+                # «скан vs текст»: текст легитимен при ссылке
+                # на оригинал и реквизитах утверждения)
+                # --------------------------------------------------
+                MDBoxLayout:
+                    orientation: "horizontal"
+                    adaptive_height: True
+                    spacing: dp(10)
+                    padding: dp(12)
+                    md_bg_color: 1, 0.949, 0.878, 1
+                    radius: [dp(12)]
+
+                    MDIcon:
+                        icon: "information"
+                        font_size: "22sp"
+                        size_hint_x: None
+                        width: dp(26)
+                        pos_hint: {"center_y": 0.5}
+                        theme_text_color: "Custom"
+                        text_color: 0.62, 0.42, 0.09, 1
+
+                    MDLabel:
+                        text: "Информация носит справочный характер. Перед применением ознакомьтесь с оригиналом инструкции, утверждённой производителем."
+                        font_style: "Body"
+                        role: "small"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.42, 0.29, 0.09, 1

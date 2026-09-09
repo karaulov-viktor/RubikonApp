@@ -1,0 +1,19 @@
+#:import my_hex kivy.utils.get_color_from_hex
+
+<CalendarScreen>:
+    id: calendar_screen
+    md_bg_color: my_hex('#ffffff')
+
+    MDLabel:
+        text: 'Календарь лечения'
+        halign: 'center'
+        font_style: "Headline"
+        role: "medium"
+        pos_hint: {"center_x": 0.5, "center_y": 0.7}
+
+    MDLabel:
+        text: "График приема препаратов"
+        halign: "center"
+        theme_text_color: "Secondary"
+        pos_hint: {"center_x": 0.5, "center_y": 0.6}
+

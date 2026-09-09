@@ -1,0 +1,43 @@
+<CatalogScreen>:
+    md_bg_color: 1, 1, 1, 1
+
+    MDBoxLayout:
+        orientation: "vertical"
+
+        FloatLayout:
+            size_hint_y: None
+            height: "160dp"
+
+            Image:
+                source: "img/bg2.jpg"
+                fit_mode: "cover"
+                size_hint: 1, 1
+                pos_hint: {"x": 0, "y": 0}
+
+            MDTextField:
+                id: search_field
+                mode: "filled"
+                size_hint_x: 0.9
+                size_hint_y: None
+                height: "48dp"
+                pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                on_text: root.on_search(self.text)
+
+                MDTextFieldLeadingIcon:
+                    icon: "magnify"
+
+                MDTextFieldHintText:
+                    text: "Поиск по препаратам..."
+
+        ScrollView:
+            size_hint_y: 1.0
+            do_scroll_x: False
+
+            MDGridLayout:
+                id: drug_grid
+                cols: 2
+                spacing: "12dp"
+                padding: "12dp"
+                adaptive_height: True
+                size_hint_y: None
+                height: self.minimum_height

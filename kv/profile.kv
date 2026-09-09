@@ -1,0 +1,22 @@
+#:import my_hex kivy.utils.get_color_from_hex
+<ProfileScreen>:
+    md_bg_color: my_hex('#ffffff')
+
+    MDLabel:
+        text: 'Профиль владельца'
+        halign: 'center'
+        font_style: "Headline"
+        role: "medium"
+        pos_hint: {"center_x": 0.5, "center_y": 0.7}
+
+    MDLabel:
+        text: "Здесь будут карточки питомцев"
+        halign: 'center'
+        theme_text_color: "Secondary"
+        pos_hint: {"center_x": 0.5, "center_y": 0.6}
+
+    MDFabButton:
+        icon: "plus"
+        style: "standard"
+        pos_hint: {"right": 0.95, "y": 0.05}
+        on_release: root.manager.current = 'pet_form'
