@@ -1,10 +1,10 @@
-from kivymd.uix.screen import MDScreen
+from kivy.metrics import dp
+from kivy.uix.image import Image
 from kivymd.app import MDApp
+from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
-from kivymd.uix.boxlayout import MDBoxLayout
-from kivy.uix.image import Image
-from kivy.metrics import dp
+from kivymd.uix.screen import MDScreen
 
 
 class DrugCard(MDCard):
@@ -31,7 +31,7 @@ class CatalogScreen(MDScreen):
         grid = self.ids.drug_grid
         grid.clear_widgets()
         for drug in drugs:
-            drug_id, name, category, description, instruction, image, icon = drug
+            drug_id, name, category, _description, _instruction, image, _icon = drug
             card = self._create_card(drug_id, name, category, image)
             grid.add_widget(card)
 

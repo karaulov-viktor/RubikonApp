@@ -1,51 +1,24 @@
-# main.py — RubikonApp
-# Изменения от 2026-09-06 (остальной код не тронут):
-#
-#   1) ФИКСИРОВАННЫЙ РАЗМЕР ОКНА: 720 x 1280, растягивать нельзя.
-#      ВАЖНО: блок Config стоит в САМОМ ВЕРХУ файла, до всех остальных
-#      kivy-импортов. Kivy читает эти настройки один раз — в момент
-#      СОЗДАНИЯ ОКНА (при первых импортах kivy.core.*). Если перенести
-#      блок ниже, окно уже успеет создаться, и настройки молча не сработают.
-#
-#      Если окно высотой 1280 не влезает в экран (маленький ноутбук) —
-#      просто уменьшите число в строке height, например на 1024.
-#      Интерфейс адаптируется, содержимое прокручивается.
-#
-#      На телефоне (будущий APK) эти настройки игнорируются — там окно
-#      всегда на весь экран, поэтому вреда от них нет.
-#
-#   2) Window.clearcolor = белый (без него вокруг карточек просвечивал
-#      чёрный цвет "очистки окна" Kivy).
-#
-#   3) ФИКС КРАША "weakly-referenced object no longer exists"
-#      (падение через 2.5 секунды после запуска, в go_to_catalog).
-#      Причина: в Kivy 2.1+ значения id из kv-файлов — слабые обёртки
-#      (WeakProxy), они НЕ держат виджет живым. После remove_widget
-#      навбар держала только слабая ссылка, сборщик мусора уничтожал
-#      виджет в случайный момент — раньше везло и краша не было,
-#      теперь не повезло. Решение: разыменовать обёртку и хранить
-#      сильную ссылку на реальный виджет (см. build()).
-
 from kivy.config import Config
 
 Config.set("graphics", "width", "340")
 Config.set("graphics", "height", "640")
 Config.set("graphics", "resizable", "0")
 
-from kivy.lang import Builder
+# сторонние библиотеки
 from kivy.clock import Clock
 from kivy.core.window import Window
-from kivy.utils import platform
+from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 
+# твой код
 from models.database import Database
-from screens.catalog import CatalogScreen
-from screens.drug_detail import DrugDetailScreen
-from screens.profile import ProfileScreen
-from screens.calculator import CalculatorScreen
-from screens.calendar import CalendarScreen
-from screens.pet_form import PetFormScreen
+from screens.calculator import CalculatorScreen  # noqa: F401
+from screens.calendar import CalendarScreen  # noqa: F401
+from screens.catalog import CatalogScreen  # noqa: F401
+from screens.drug_detail import DrugDetailScreen  # noqa: F401
+from screens.pet_form import PetFormScreen  # noqa: F401
+from screens.profile import ProfileScreen  # noqa: F401
 
 
 class SplashScreen(MDScreen):

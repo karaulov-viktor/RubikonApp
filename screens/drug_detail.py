@@ -1,5 +1,5 @@
-from kivymd.uix.screen import MDScreen
 from kivymd.app import MDApp
+from kivymd.uix.screen import MDScreen
 
 
 class DrugDetailScreen(MDScreen):
@@ -34,7 +34,7 @@ class DrugDetailScreen(MDScreen):
         Поле description читаем, но НЕ показываем: блок «Описание»
         удалён из kv (id drug_description больше не существует).
         """
-        drug_id, name, category, _description, instruction, image, icon = drug[:7]
+        _drug_id, name, category, _description, instruction, image, _icon = drug[:7]
 
         self.ids.drug_image.source = image or ""
         self.ids.drug_name.text = name or ""
