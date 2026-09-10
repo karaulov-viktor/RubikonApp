@@ -103,5 +103,31 @@ class Database:
             "SELECT id, name, species, breed, size, age, weight, history, photo FROM pets ORDER BY name")
         return self.cursor.fetchall()
 
+    def get_pet_by_id(self, pet_id):
+        """Один питомец по номеру — для заполнения формы в режиме правки."""
+        self.cursor.execute(
+            "SELECT id, name, species, breed, size, age, weight, history, photo FROM pets WHERE id = ?",
+            (pet_id,)
+        )
+        return self.cursor.fetchone()
+
+    def update_pet(self, pet_id, name, species, breed, size, age, weight, history, photo):
+        """Перезаписать питомца по номеру."""
+        self.cursor.execute(
+            """
+            UPDATE pets
+            SET name = ?, species = ?, breed = ?, size = ?,
+                age = ?, weight = ?, history = ?, photo = ?
+            WHERE id = ?
+            """,
+            (name, species, breed, size, age, weight, history, photo, pet_id)
+        )
+        self.conn.commit()
+
+    def delete_pet(self, pet_id):
+        """Удалить питомца по номеру."""
+        self.cursor.execute("DELETE FROM pets WHERE id = ?", (pet_id,))
+        self.conn.commit()
+
     def close(self):
         self.conn.close()
