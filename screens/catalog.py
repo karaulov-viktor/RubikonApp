@@ -31,7 +31,8 @@ class CatalogScreen(MDScreen):
         grid = self.ids.drug_grid
         grid.clear_widgets()
         for drug in drugs:
-            drug_id, name, category, _description, _instruction, image, _icon = drug
+            # Берём только первые 7 полей, игнорируя новые (dose_per_kg и т.д.)
+            drug_id, name, category, _description, _instruction, image, _icon = drug[:7]
             card = self._create_card(drug_id, name, category, image)
             grid.add_widget(card)
 

@@ -2,18 +2,307 @@
 
 <CalendarScreen>:
     id: calendar_screen
-    md_bg_color: my_hex('#ffffff')
+    md_bg_color: 1, 1, 1, 1
 
-    MDLabel:
-        text: 'Календарь лечения'
-        halign: 'center'
-        font_style: "Headline"
-        role: "medium"
-        pos_hint: {"center_x": 0.5, "center_y": 0.7}
+    MDBoxLayout:
+        orientation: "vertical"
 
-    MDLabel:
-        text: "График приема препаратов"
-        halign: "center"
-        theme_text_color: "Secondary"
-        pos_hint: {"center_x": 0.5, "center_y": 0.6}
+        # Шапка
+        MDBoxLayout:
+            orientation: "vertical"
+            adaptive_height: True
+            padding: dp(16), dp(14)
+            spacing: dp(2)
+            md_bg_color: 1, 1, 1, 1
 
+            MDLabel:
+                text: "Календарь лечения"
+                font_style: "Title"
+                role: "medium"
+                adaptive_height: True
+                theme_text_color: "Custom"
+                text_color: 0.18, 0.49, 0.2, 1
+                bold: True
+
+            MDLabel:
+                text: "График приёма препаратов"
+                font_style: "Body"
+                role: "small"
+                adaptive_height: True
+                theme_text_color: "Custom"
+                text_color: 0.45, 0.45, 0.45, 1
+
+        MDDivider:
+            size_hint_y: None
+            height: dp(1)
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                padding: dp(16)
+                spacing: dp(16)
+
+                # ═══ Сетка месяца ═══
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    md_bg_color: 0.97, 0.97, 0.97, 1
+                    radius: [dp(12)]
+                    padding: dp(12)
+
+                    MDBoxLayout:
+                        adaptive_height: True
+                        spacing: dp(8)
+
+                        MDIconButton:
+                            icon: "chevron-left"
+                            icon_color: 0.18, 0.49, 0.2, 1
+                            on_release: root.prev_month()
+
+                        MDLabel:
+                            id: month_label
+                            text: ""
+                            font_style: "Title"
+                            role: "medium"
+                            halign: "center"
+                            theme_text_color: "Custom"
+                            text_color: 0.13, 0.13, 0.13, 1
+
+                        MDIconButton:
+                            icon: "chevron-right"
+                            icon_color: 0.18, 0.49, 0.2, 1
+                            on_release: root.next_month()
+
+                    MDGridLayout:
+                        cols: 7
+                        adaptive_height: True
+                        spacing: dp(4)
+                        padding: dp(4)
+
+                        MDLabel:
+                            text: "Пн"
+                            halign: "center"
+                            font_style: "Label"
+                            role: "small"
+                            theme_text_color: "Custom"
+                            text_color: 0.45, 0.45, 0.45, 1
+                            bold: True
+
+                        MDLabel:
+                            text: "Вт"
+                            halign: "center"
+                            font_style: "Label"
+                            role: "small"
+                            theme_text_color: "Custom"
+                            text_color: 0.45, 0.45, 0.45, 1
+                            bold: True
+
+                        MDLabel:
+                            text: "Ср"
+                            halign: "center"
+                            font_style: "Label"
+                            role: "small"
+                            theme_text_color: "Custom"
+                            text_color: 0.45, 0.45, 0.45, 1
+                            bold: True
+
+                        MDLabel:
+                            text: "Чт"
+                            halign: "center"
+                            font_style: "Label"
+                            role: "small"
+                            theme_text_color: "Custom"
+                            text_color: 0.45, 0.45, 0.45, 1
+                            bold: True
+
+                        MDLabel:
+                            text: "Пт"
+                            halign: "center"
+                            font_style: "Label"
+                            role: "small"
+                            theme_text_color: "Custom"
+                            text_color: 0.45, 0.45, 0.45, 1
+                            bold: True
+
+                        MDLabel:
+                            text: "Сб"
+                            halign: "center"
+                            font_style: "Label"
+                            role: "small"
+                            theme_text_color: "Custom"
+                            text_color: 0.45, 0.45, 0.45, 1
+                            bold: True
+
+                        MDLabel:
+                            text: "Вс"
+                            halign: "center"
+                            font_style: "Label"
+                            role: "small"
+                            theme_text_color: "Custom"
+                            text_color: 0.45, 0.45, 0.45, 1
+                            bold: True
+
+                    MDGridLayout:
+                        id: days_grid
+                        cols: 7
+                        adaptive_height: True
+                        spacing: dp(4)
+                        padding: dp(4)
+
+                # ═══ Форма создания напоминания ═══
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    md_bg_color: 0.906, 0.937, 0.878, 1
+                    radius: [dp(12)]
+                    padding: dp(14)
+                    spacing: dp(10)
+
+                    MDLabel:
+                        text: "Новое напоминание"
+                        font_style: "Title"
+                        role: "small"
+                        theme_text_color: "Custom"
+                        text_color: 0.18, 0.49, 0.2, 1
+                        bold: True
+
+                    # Питомец
+                    MDTextField:
+                        id: reminder_pet_field
+                        mode: "outlined"
+                        readonly: True
+                        on_focus: root.open_pet_menu(self, args[1])
+
+                        MDTextFieldHintText:
+                            text: "Питомец"
+
+                        MDTextFieldTrailingIcon:
+                            icon: "chevron-down"
+
+                    # Препарат
+                    MDTextField:
+                        id: reminder_drug_field
+                        mode: "outlined"
+                        readonly: True
+                        on_focus: root.open_drug_menu(self, args[1])
+
+                        MDTextFieldHintText:
+                            text: "Препарат"
+
+                        MDTextFieldTrailingIcon:
+                            icon: "chevron-down"
+
+                    # Даты (Начало — Окончание)
+                    MDBoxLayout:
+                        adaptive_height: True
+                        spacing: dp(8)
+
+                        MDTextField:
+                            id: reminder_start_field
+                            mode: "outlined"
+                            size_hint_x: 0.5
+                            on_focus: root.show_start_date_picker(self.focus)
+
+                            MDTextFieldHintText:
+                                text: "Начало"
+
+                        MDTextField:
+                            id: reminder_end_field
+                            mode: "outlined"
+                            size_hint_x: 0.5
+                            on_focus: root.show_end_date_picker(self.focus)
+
+                            MDTextFieldHintText:
+                                text: "Окончание"
+
+                    # ═══ Время — два выпадающих списка ═══
+                    MDLabel:
+                        text: "Время приёма"
+                        font_style: "Label"
+                        role: "small"
+                        theme_text_color: "Secondary"
+
+                    MDBoxLayout:
+                        adaptive_height: True
+                        spacing: dp(8)
+
+                        # Часы
+                        MDTextField:
+                            id: time_hours_field
+                            mode: "outlined"
+                            readonly: True
+                            size_hint_x: 0.45
+                            halign: "center"
+                            on_focus: root.open_hours_menu(self, args[1])
+
+                            MDTextFieldHintText:
+                                text: "Часы"
+
+                            MDTextFieldTrailingIcon:
+                                icon: "chevron-down"
+
+                        # Разделитель
+                        MDLabel:
+                            text: ":"
+                            font_style: "Headline"
+                            role: "small"
+                            halign: "center"
+                            size_hint_x: 0.1
+                            theme_text_color: "Custom"
+                            text_color: 0.18, 0.49, 0.2, 1
+                            bold: True
+                            pos_hint: {"center_y": 0.5}
+
+                        # Минуты
+                        MDTextField:
+                            id: time_minutes_field
+                            mode: "outlined"
+                            readonly: True
+                            size_hint_x: 0.45
+                            halign: "center"
+                            on_focus: root.open_minutes_menu(self, args[1])
+
+                            MDTextFieldHintText:
+                                text: "Минуты"
+
+                            MDTextFieldTrailingIcon:
+                                icon: "chevron-down"
+
+                    # Скрытое поле для хранения объединённого времени
+                    MDTextField:
+                        id: reminder_time_field
+                        opacity: 0
+                        height: 0
+                        size_hint_y: None
+
+                    # Кнопка
+                    MDButton:
+                        style: "filled"
+                        size_hint_x: 1
+                        theme_bg_color: "Custom"
+                        md_bg_color: 0.18, 0.49, 0.2, 1
+                        on_release: root.save_reminder()
+
+                        MDButtonText:
+                            text: "Завести будильник"
+
+                # ═══ Список активных будильников ═══
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(8)
+
+                    MDLabel:
+                        text: "Активные будильники"
+                        font_style: "Title"
+                        role: "small"
+                        theme_text_color: "Custom"
+                        text_color: 0.18, 0.49, 0.2, 1
+                        bold: True
+
+                    MDBoxLayout:
+                        id: reminders_list
+                        orientation: "vertical"
+                        adaptive_height: True
+                        spacing: dp(8)

@@ -14,9 +14,10 @@
             MDIconButton:
                 icon: "arrow-left"
                 icon_color: 0.13, 0.13, 0.13, 1
-                on_release: root.manager.current = "profile"
+                on_release: root.go_back()
 
             MDLabel:
+                id: label_title
                 text: "Анкета питомца"
                 font_style: "Title"
                 adaptive_height: True
@@ -145,4 +146,5 @@
                     on_release: root.save_pet()
 
                     MDButtonText:
+                        id: btn_save_text
                         text: "Сохранить"

@@ -1,0 +1,384 @@
+#:import my_hex kivy.utils.get_color_from_hex
+
+<PetDetailScreen>:
+    name: "pet_detail"
+    md_bg_color: 1, 1, 1, 1
+
+    MDBoxLayout:
+        orientation: "vertical"
+
+        # ═══ Шапка ═══
+        MDBoxLayout:
+            orientation: "horizontal"
+            adaptive_height: True
+            padding: dp(10), dp(10)
+            md_bg_color: 0.18, 0.49, 0.2, 1  # зелёная шапка
+
+            MDIconButton:
+                icon: "arrow-left"
+                icon_color: 1, 1, 1, 1
+                on_release: root.go_back()
+
+            MDLabel:
+                text: "Карточка питомца"
+                font_style: "Title"
+                role: "medium"
+                adaptive_height: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                bold: True
+                pos_hint: {"center_y": 0.5}
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                padding: dp(16)
+                spacing: dp(18)
+
+                # ═══ Фото ═══
+                MDBoxLayout:
+                    id: photo_box
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: dp(160)
+                    md_bg_color: 0.93, 0.96, 0.91, 1
+                    radius: [dp(16)]
+
+                # ═══ Основная информация ═══
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    md_bg_color: 0.906, 0.937, 0.878, 1
+                    radius: [dp(16)]
+                    padding: dp(18)
+                    spacing: dp(10)
+
+                    # Имя питомца — крупно
+                    MDLabel:
+                        id: pet_name
+                        text: ""
+                        font_style: "Headline"
+                        role: "medium"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.118, 0.302, 0.125, 1
+                        bold: True
+
+                    # Вид и порода
+                    MDLabel:
+                        id: pet_species
+                        text: ""
+                        font_style: "Title"
+                        role: "small"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.25, 0.25, 0.25, 1
+
+                    # Характеристики — 3 колонки
+                    MDGridLayout:
+                        cols: 3
+                        adaptive_height: True
+                        spacing: dp(16)
+                        padding: dp(0), dp(12), dp(0), dp(4)
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            adaptive_height: True
+                            spacing: dp(4)
+                            MDLabel:
+                                text: "Размер"
+                                font_style: "Label"
+                                role: "small"
+                                theme_text_color: "Custom"
+                                text_color: 0.45, 0.45, 0.45, 1
+                                halign: "center"
+                            MDLabel:
+                                id: pet_size
+                                text: ""
+                                font_style: "Title"
+                                role: "small"
+                                theme_text_color: "Custom"
+                                text_color: 0.118, 0.302, 0.125, 1
+                                halign: "center"
+                                bold: True
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            adaptive_height: True
+                            spacing: dp(4)
+                            MDLabel:
+                                text: "Возраст"
+                                font_style: "Label"
+                                role: "small"
+                                theme_text_color: "Custom"
+                                text_color: 0.45, 0.45, 0.45, 1
+                                halign: "center"
+                            MDLabel:
+                                id: pet_age
+                                text: ""
+                                font_style: "Title"
+                                role: "small"
+                                theme_text_color: "Custom"
+                                text_color: 0.118, 0.302, 0.125, 1
+                                halign: "center"
+                                bold: True
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            adaptive_height: True
+                            spacing: dp(4)
+                            MDLabel:
+                                text: "Вес"
+                                font_style: "Label"
+                                role: "small"
+                                theme_text_color: "Custom"
+                                text_color: 0.45, 0.45, 0.45, 1
+                                halign: "center"
+                            MDLabel:
+                                id: pet_weight
+                                text: ""
+                                font_style: "Title"
+                                role: "small"
+                                theme_text_color: "Custom"
+                                text_color: 0.118, 0.302, 0.125, 1
+                                halign: "center"
+                                bold: True
+
+                # ═══ Назначенное лечение ═══
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(10)
+
+                    MDLabel:
+                        text: "Назначенное лечение"
+                        font_style: "Title"
+                        role: "medium"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.118, 0.302, 0.125, 1
+                        bold: True
+
+                    MDBoxLayout:
+                        id: treatment_list
+                        orientation: "vertical"
+                        adaptive_height: True
+                        spacing: dp(8)
+
+                # ═══ Дополнительные сведения ═══
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    md_bg_color: 0.96, 0.96, 0.96, 1
+                    radius: [dp(16)]
+                    padding: dp(18)
+                    spacing: dp(8)
+
+                    MDLabel:
+                        text: "Дополнительные сведения"
+                        font_style: "Title"
+                        role: "small"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.118, 0.302, 0.125, 1
+                        bold: True
+
+                    MDLabel:
+                        id: pet_history
+                        text: ""
+                        font_style: "Body"
+                        role: "medium"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.3, 0.3, 0.3, 1
+
+                # ═══ Подходящие препараты ═══
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(10)
+
+                    MDBoxLayout:
+                        adaptive_height: True
+                        spacing: dp(10)
+                        MDLabel:
+                            text: "Подходящие препараты"
+                            font_style: "Title"
+                            role: "medium"
+                            adaptive_height: True
+                            theme_text_color: "Custom"
+                            text_color: 0.118, 0.302, 0.125, 1
+                            bold: True
+                        MDLabel:
+                            id: drugs_count
+                            text: ""
+                            font_style: "Label"
+                            role: "small"
+                            theme_text_color: "Secondary"
+                            pos_hint: {"center_y": 0.5}
+
+                    MDTextField:
+                        id: drug_field
+                        mode: "outlined"
+                        readonly: True
+                        on_focus: root.open_drug_menu(self, args[1])
+
+                        MDTextFieldHintText:
+                            text: "Выбрать препарат"
+
+                        MDTextFieldLeadingIcon:
+                            icon: "pill"
+
+                        MDTextFieldTrailingIcon:
+                            icon: "chevron-down"
+
+                # ═══ Блок расчёта дозы ═══
+                MDBoxLayout:
+                    id: dose_box
+                    orientation: "vertical"
+                    adaptive_height: True
+                    opacity: 0
+                    size_hint_y: None
+                    height: dp(1)
+                    md_bg_color: 0.118, 0.302, 0.125, 1
+                    radius: [dp(16)]
+                    padding: dp(18)
+                    spacing: dp(10)
+
+                    MDLabel:
+                        text: "Расчёт дозы"
+                        font_style: "Title"
+                        role: "small"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.647, 0.839, 0.655, 1
+                        bold: True
+
+                    MDBoxLayout:
+                        adaptive_height: True
+                        MDLabel:
+                            text: "Вес животного"
+                            font_style: "Body"
+                            role: "medium"
+                            theme_text_color: "Custom"
+                            text_color: 0.647, 0.839, 0.655, 1
+                        MDLabel:
+                            id: dose_weight
+                            text: ""
+                            font_style: "Title"
+                            role: "medium"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            bold: True
+                            halign: "right"
+
+                    MDBoxLayout:
+                        adaptive_height: True
+                        MDLabel:
+                            text: "Разовая доза"
+                            font_style: "Body"
+                            role: "medium"
+                            theme_text_color: "Custom"
+                            text_color: 0.647, 0.839, 0.655, 1
+                        MDLabel:
+                            id: dose_single
+                            text: ""
+                            font_style: "Headline"
+                            role: "small"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            bold: True
+                            halign: "right"
+
+                    MDLabel:
+                        id: dose_formula
+                        text: ""
+                        font_style: "Label"
+                        role: "small"
+                        theme_text_color: "Custom"
+                        text_color: 0.506, 0.686, 0.514, 1
+                        halign: "right"
+
+                    MDBoxLayout:
+                        id: dose_volume_row
+                        adaptive_height: True
+                        size_hint_y: None
+                        height: dp(32)
+                        MDLabel:
+                            text: "Объём в шприц"
+                            font_style: "Body"
+                            role: "medium"
+                            theme_text_color: "Custom"
+                            text_color: 0.647, 0.839, 0.655, 1
+                        MDLabel:
+                            id: dose_volume
+                            text: ""
+                            font_style: "Title"
+                            role: "medium"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            bold: True
+                            halign: "right"
+
+                    MDBoxLayout:
+                        adaptive_height: True
+                        padding: dp(0), dp(6), dp(0), dp(0)
+                        MDLabel:
+                            text: "Курс лечения"
+                            font_style: "Body"
+                            role: "medium"
+                            theme_text_color: "Custom"
+                            text_color: 0.647, 0.839, 0.655, 1
+                        MDLabel:
+                            id: dose_duration
+                            text: ""
+                            font_style: "Title"
+                            role: "medium"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            bold: True
+                            halign: "right"
+
+                # ═══ Кнопка «Отметить в календаре» ═══
+                MDButton:
+                    style: "filled"
+                    size_hint_x: 1
+                    size_hint_y: None
+                    height: dp(52)
+                    theme_bg_color: "Custom"
+                    md_bg_color: 0.18, 0.49, 0.2, 1
+                    on_release: root.add_to_calendar()
+
+                    MDButtonIcon:
+                        icon: "calendar-check"
+                        icon_color: 1, 1, 1, 1
+
+                    MDButtonText:
+                        text: "Отметить напоминание в календаре"
+                        font_style: "Body"
+                        role: "medium"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        bold: True
+
+                # ═══ История назначений ═══
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(10)
+
+                    MDLabel:
+                        text: "История назначений"
+                        font_style: "Title"
+                        role: "medium"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.118, 0.302, 0.125, 1
+                        bold: True
+
+                    MDBoxLayout:
+                        id: prescriptions_list
+                        orientation: "vertical"
+                        adaptive_height: True
+                        spacing: dp(8)

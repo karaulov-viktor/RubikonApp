@@ -1,28 +1,50 @@
 #:import my_hex kivy.utils.get_color_from_hex
 
-<SplashScreen>:
-    md_bg_color: my_hex('#177300')
+# ═══════════════════════════════════════════════════════
+# SPLASH SCREEN — «Рубикон Агент»
+# ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
+# ═══════════════════════════════════════════════════════
 
+<SplashScreen>:
+    md_bg_color: my_hex('#2E7D32')  # фирменный зелёный
+
+    # Логотип по центру
     Image:
         source: 'img/logo.png'
         size_hint: (None, None)
-        size: (200, 200)
+        size: (180, 180)
         pos_hint: {'center_x': 0.5, 'center_y': 0.55}
 
+    # Название
     MDLabel:
-        text: "Рубиконт-Агент"
+        text: "Рубикон"
         halign: "center"
         theme_text_color: "Custom"
         text_color: "#ffffff"
         font_style: "Headline"
         role: "large"
-        pos_hint: {'center_x': 0.5, 'center_y': 0.35}
+        font_size: "32sp"
+        bold: True
+        pos_hint: {'center_x': 0.5, 'center_y': 0.38}
 
+    # Подзаголовок
     MDLabel:
-        text: "Ветеринарный помощник"
+        text: "Агент"
         halign: "center"
         theme_text_color: "Custom"
-        text_color: "#ffffff"
+        text_color: "#A5D6A7"  # светло-зелёный
         font_style: "Title"
         role: "medium"
-        pos_hint: {"center_x": 0.5, "center_y": 0.28}
+        font_size: "18sp"
+        pos_hint: {'center_x': 0.5, 'center_y': 0.32}
+
+    # Версия внизу
+    MDLabel:
+        text: "Ветеринарный помощник v1.0"
+        halign: "center"
+        theme_text_color: "Custom"
+        text_color: "#81C784"
+        font_style: "Body"
+        role: "small"
+        font_size: "12sp"
+        pos_hint: {'center_x': 0.5, 'center_y': 0.08}
