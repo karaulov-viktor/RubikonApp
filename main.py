@@ -1,3 +1,7 @@
+import os  # работа с файлами и папками
+import shutil  # копирование файлов
+from datetime import datetime  # текущая дата-время для имени копии
+
 from kivy.config import Config
 
 Config.set("graphics", "width", "340")
@@ -21,6 +25,24 @@ from screens.pet_form import PetFormScreen  # noqa: F401
 from screens.profile import ProfileScreen  # noqa: F401
 
 
+def backup_database(keep=5):
+    """Снимок базы при каждом старте: последний удачный запуск всегда восстановим."""
+    src = "data/rubikon.db"
+    if not os.path.exists(src):  # базы ещё нет (первый запуск) — снимать нечего
+        print("Бэкап пропущен: data/rubikon.db не найден")
+        return
+        # DTZ005 отклоняем: метка в имени файла — подпись для человека, нужно местное время ПК.
+        # Правило про серверные системы, где времена сравниваются между собой, — у нас сравнений нет.
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")  # noqa: DTZ005
+    dst = os.path.join("backup", f"rubikon.db.bak-{stamp}")
+    os.makedirs("backup", exist_ok=True)  # нет папки — создай, есть — молчи
+    shutil.copyfile(src, dst)  # copyfile, НЕ copy2! (PermissionError на флешке, Спринт 2)
+    print(f"Бэкап создан: {dst}")
+    baks = sorted(os.listdir("backup"))  # старые копии первые — спасибо штампу в имени
+    while len(baks) > keep:  # храним последние 5, устаревшие удаляем
+        os.remove(os.path.join("backup", baks.pop(0)))
+
+
 class SplashScreen(MDScreen):
     pass
 
@@ -33,6 +55,11 @@ class RubikonApp(MDApp):
 
         # Белая подложка под всеми экранами (вместо чёрной по умолчанию)
         Window.clearcolor = (1, 1, 1, 1)
+
+        try:
+            backup_database()  # снимок ДО того, как приложение что-то изменит в базе
+        except OSError as e:
+            print(f"Бэкап не удался, работаем дальше: {e}")
 
         self.db = Database()
 
@@ -56,8 +83,8 @@ class RubikonApp(MDApp):
         # ссылку на него — теперь он не исчезнет ни при каком GC.
         # ------------------------------------------------------------
         nav_bar = self.root.ids.nav_bar
-        if hasattr(nav_bar, "__ref__"):        # WeakProxy? (Kivy 2.1+)
-            nav_bar = nav_bar.__ref__()        # реальный виджет
+        if hasattr(nav_bar, "__ref__"):  # WeakProxy? (Kivy 2.1+)
+            nav_bar = nav_bar.__ref__()  # реальный виджет
         self.nav_bar = nav_bar
         self.root.remove_widget(self.nav_bar)
 
