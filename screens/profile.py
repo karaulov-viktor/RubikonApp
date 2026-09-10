@@ -1,3 +1,4 @@
+import os
 from functools import partial
 
 from kivy.app import App
@@ -8,6 +9,8 @@ from kivymd.uix.button import MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.screen import MDScreen
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class ProfileScreen(MDScreen):
@@ -46,7 +49,7 @@ class ProfileScreen(MDScreen):
         # фото слева; нет фото — серая лапка
         if photo:
             avatar = Image(
-                source=photo,
+                source=os.path.join(BASE_DIR, photo),
                 fit_mode="cover",
                 size_hint=(None, None),
                 size=(dp(56), dp(56)),

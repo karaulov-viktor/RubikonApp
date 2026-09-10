@@ -1,21 +1,15 @@
 <PetFormScreen>:
     name: "pet_form"
-    canvas.before:
-        Color:
-            rgba: 1, 1, 1, 1
-        Rectangle:
-            pos: self.pos
-            size: self.size
 
     MDBoxLayout:
         orientation: "vertical"
+        md_bg_color: 1, 1, 1, 1
 
-        # Шапка: стрелка + заголовок В ОДНОЙ горизонтальной строке
+        # ===== ШАПКА: стрелка назад + заголовок =====
         MDBoxLayout:
             orientation: "horizontal"
             adaptive_height: True
             padding: dp(8), dp(6)
-            md_bg_color: 1, 1, 1, 1
 
             MDIconButton:
                 icon: "arrow-left"
@@ -29,15 +23,18 @@
                 theme_text_color: "Custom"
                 text_color: 0.13, 0.13, 0.13, 1
                 pos_hint: {"center_y": 0.5}
-#___________Анкета питомца
-        ScrollView:
-            do_scroll_x: False
-            MDBoxLayout:
-                orientation: 'vertical'
-                adaptive_height: True
-                padding: [20, 30, 20, 30]  # [слева, сверху, справа, снизу] в пикселях
-                spacing: 30                 # расстояние между элементами внутри, если их несколько
 
+        # ===== КОНТЕНТ ФОРМЫ =====
+        MDScrollView:
+            do_scroll_x: False
+
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                padding: dp(20), dp(30), dp(20), dp(30)
+                spacing: dp(24)
+
+                # --- Кличка ---
                 MDTextField:
                     id: field_name
                     mode: "outlined"
@@ -46,62 +43,74 @@
                         text: "Кличка питомца"
 
                     MDTextFieldMaxLengthText:
-                        max_text_length: 10
+                        max_text_length: 20
 
+                # --- Вид (выпадающий список) ---
                 MDTextField:
                     id: field_species
                     mode: "outlined"
+                    readonly: True
+                    on_focus: root.open_species_menu(self, args[1])
 
                     MDTextFieldHintText:
                         text: "Вид"
 
-                    MDTextFieldMaxLengthText:
-                        max_text_length: 10
+                    MDTextFieldTrailingIcon:
+                        icon: "chevron-down"
 
+                # --- Порода (выпадающий список) ---
                 MDTextField:
                     id: field_breed
                     mode: "outlined"
+                    readonly: True
+                    on_focus: root.open_breed_menu(self, args[1])
 
                     MDTextFieldHintText:
                         text: "Порода"
 
-                    MDTextFieldMaxLengthText:
-                        max_text_length: 10
+                    MDTextFieldTrailingIcon:
+                        icon: "chevron-down"
 
+                # --- Размер (выпадающий список) ---
                 MDTextField:
                     id: field_size
                     mode: "outlined"
+                    readonly: True
+                    on_focus: root.open_size_menu(self, args[1])
 
                     MDTextFieldHintText:
                         text: "Размер"
 
-                    MDTextFieldMaxLengthText:
-                        max_text_length: 10
+                    MDTextFieldTrailingIcon:
+                        icon: "chevron-down"
 
+                # --- Возраст ---
                 MDTextField:
                     id: field_age
                     mode: "outlined"
-                    input_type: 'number'
-                    input_filter: 'float'
+                    input_type: "number"
+                    input_filter: "int"
+
                     MDTextFieldHintText:
-                        text: "Возраст питомца"
-
-
+                        text: "Возраст (лет)"
 
                     MDTextFieldMaxLengthText:
-                        max_text_length: 10
+                        max_text_length: 3
 
+                # --- Вес ---
                 MDTextField:
                     id: field_weight
                     mode: "outlined"
-                    input_type: 'number'
-                    input_filter: 'float'
+                    input_type: "number"
+                    input_filter: "float"
+
                     MDTextFieldHintText:
-                        text: "Вес питомца"
+                        text: "Вес (кг)"
 
                     MDTextFieldMaxLengthText:
-                        max_text_length: 10
+                        max_text_length: 6
 
+                # --- Дополнительные сведения ---
                 MDTextField:
                     id: field_history
                     mode: "outlined"
@@ -110,14 +119,30 @@
                         text: "Дополнительные сведения"
 
                     MDTextFieldMaxLengthText:
-                        max_text_length: 100
+                        max_text_length: 200
 
+                # --- Кнопка выбора фото ---
+                MDButton:
+                    style: "tonal"
+                    size_hint_x: 1
+                    on_release: root.choose_photo()
+
+                    MDButtonText:
+                        text: "Выбрать фото"
+
+                # --- Статус фото ---
+                MDLabel:
+                    id: label_photo
+                    text: "Фото не выбрано"
+                    theme_text_color: "Secondary"
+                    adaptive_height: True
+                    halign: "center"
+
+                # --- Кнопка "Сохранить" (в самом низу) ---
                 MDButton:
                     style: "filled"
+                    size_hint_x: 1
                     on_release: root.save_pet()
 
                     MDButtonText:
                         text: "Сохранить"
-
-
-
