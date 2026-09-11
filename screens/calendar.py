@@ -43,6 +43,17 @@ class CalendarScreen(MDScreen):
         self._menu = None
         Clock.schedule_interval(self.check_alarms, 1.0)
 
+    def prefill_from_pet(self, pet_id, pet_name, drug_id, drug_name, start_date, end_date):
+        """Заполнить поля календаря данными из карточки питомца."""
+        self.selected_pet_id = pet_id
+        self.selected_drug_id = drug_id
+
+        self.ids.reminder_pet_field.text = pet_name
+        self.ids.reminder_drug_field.text = drug_name
+        self.ids.reminder_start_field.text = start_date
+        self.ids.reminder_end_field.text = end_date
+        # Время оставляем по умолчанию — пользователь выберет сам
+
     def on_enter(self):
         """При входе на экран — обновляем сетку и список."""
         self.update_calendar()
@@ -420,10 +431,13 @@ class CalendarScreen(MDScreen):
 
     def delete_reminder(self, reminder_id, *args):
         app = App.get_running_app()
+        # Сначала архивируем в историю
+        app.db.archive_reminder(reminder_id)
+        # Потом удаляем из активных
         app.db.delete_reminder(reminder_id)
         self.update_calendar()
         self.update_reminders_list()
-        app.show_toast("Будильник удалён")
+        app.show_toast("Будильник удалён (сохранён в истории)")
 
     # ═══════════════════════════════════════════════════════
     # ПРОВЕРКА БУДИЛЬНИКОВ (каждую секунду)

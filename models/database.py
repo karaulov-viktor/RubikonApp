@@ -332,5 +332,55 @@ class Database:
         )
         return self.cursor.fetchall()
 
+    def archive_reminder(self, reminder_id):
+        """Перенести будильник в историю перед удалением."""
+        # Получаем данные будильника
+        self.cursor.execute(
+            """SELECT pet_id, drug_id, start_date, end_date, time
+               FROM reminders WHERE id = ?""",
+            (reminder_id,)
+        )
+        row = self.cursor.fetchone()
+        if not row:
+            return
+
+        pet_id, drug_id, start_date, end_date, time = row
+
+        # Получаем данные препарата
+        self.cursor.execute(
+            """SELECT dose_per_kg, concentration, duration_days
+               FROM drugs WHERE id = ?""",
+            (drug_id,)
+        )
+        drug_row = self.cursor.fetchone()
+
+        dose_per_kg = drug_row[0] if drug_row else 0
+        concentration = drug_row[1] if drug_row else 0
+        duration_days = drug_row[2] if drug_row else 0
+
+        notes = f"Период: {start_date} — {end_date}, время: {time}"
+
+        # Проверяем, нет ли уже такой записи в истории
+        self.cursor.execute(
+            """SELECT COUNT(*) FROM prescriptions
+               WHERE pet_id = ? AND drug_id = ? AND prescribed_date LIKE ?""",
+            (pet_id, drug_id, f"{start_date[:10]}%")
+        )
+        if self.cursor.fetchone()[0] > 0:
+            return  # уже есть
+
+        # Сохраняем в историю
+        from datetime import datetime
+        prescribed_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+        self.cursor.execute(
+            """INSERT INTO prescriptions
+               (pet_id, drug_id, prescribed_date, dose_per_kg,
+                concentration, duration_days, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (pet_id, drug_id, prescribed_date, dose_per_kg,
+             concentration, duration_days, notes)
+        )
+        self.conn.commit()
+
     def close(self):
         self.conn.close()

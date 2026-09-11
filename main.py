@@ -94,7 +94,7 @@ class RubikonApp(MDApp):
         self.root.remove_widget(self.nav_bar)
 
         # Splash: 2.5 секунды вместо 5
-        Clock.schedule_once(self.go_to_catalog, 2.5)
+        Clock.schedule_once(self.go_to_catalog, 5)
 
         return self.root
 
