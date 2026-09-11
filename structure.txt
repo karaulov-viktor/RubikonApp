@@ -1,81 +1,81 @@
 ‘âàãªâãà  ¯ ¯®ª â®¬  ESD-ISO
 ‘¥à¨©­ë© ­®¬¥à â®¬ : 56B9-58DA
 I:.
-³   çâ® á¤¥« âì
-³   main.py
-³   apply_instructions.py
-³   è ¡«®­ ¤«ï ¨­áâàãªæ¨©
-³   .gitignore
-³   requirements.txt
 ³   run.bat
 ³   structure.txt
+³   çâ® á¤¥« âì
+³   è ¡«®­ ¤«ï ¨­áâàãªæ¨©
+³   .gitignore
+³   rubikon_history_v2.zip
+³   fix_kivymd_fbo.py
+³   ˆ‘’“Š–ˆŸ.txt
+³   apply_instructions.py
+³   main.py
+³   requirements.txt
 ³   
 ÃÄÄÄ.idea
 ³   ³   .gitignore
-³   ³   .name
-³   ³   misc.xml
-³   ³   modules.xml
 ³   ³   rubicon_app.iml
+³   ³   modules.xml
+³   ³   misc.xml
 ³   ³   vcs.xml
 ³   ³   workspace.xml
 ³   ³   
 ³   ÀÄÄÄinspectionProfiles
-³           profiles_settings.xml
 ³           Project_Default.xml
+³           profiles_settings.xml
 ³           
 ÃÄÄÄassets
 ÃÄÄÄimg
 ³       logo.png
 ³       azitricon.png
+³       bg2.jpg
 ³       distrip_400_LA.png
 ³       dyocilin_LA_100_ml.png
-³       trimetoks_tabl.png
-³       torykoks_5%.png
-³       stimylong.png
+³       ektofen.png
+³       glytar.png
 ³       ketoprofen.png
 ³       ksilovit.png
-³       glytar.png
-³       mikofarm.png
-³       ektofen.png
 ³       marbofloks_r-r.png
-³       bg2.jpg
+³       mikofarm.png
+³       stimylong.png
+³       torykoks_5%.png
+³       trimetoks_tabl.png
 ³       
 ÃÄÄÄkv
+³       calculator.kv
 ³       calendar.kv
+³       catalog.kv
 ³       profile.kv
 ³       splash.kv
-³       drug_detail.kv
-³       catalog.kv
 ³       root.kv
-³       calculator.kv
 ³       pet_form.kv
+³       drug_detail.kv
+³       appointment_detail.kv
+³       pet_detail.kv
 ³       
 ÃÄÄÄscreens
+³   ³   calculator.py
 ³   ³   calendar.py
 ³   ³   catalog.py
 ³   ³   profile.py
 ³   ³   splash.py
 ³   ³   __init__.py
-³   ³   drug_detail.py
-³   ³   calculator.py
 ³   ³   pet_form.py
+³   ³   drug_detail.py
+³   ³   appointment_detail.py
+³   ³   pet_detail.py
 ³   ³   
 ³   ÀÄÄÄ__pycache__
-³           calendar.cpython-312.pyc
-³           calculator.cpython-312.pyc
-³           profile.cpython-312.pyc
-³           profile.cpython-311.pyc
-³           splash.cpython-312.pyc
-³           drug_detail.cpython-312.pyc
-³           pet_form.cpython-312.pyc
-³           calendar.cpython-311.pyc
-³           calculator.cpython-311.pyc
-³           pet_form.cpython-311.pyc
-³           __init__.cpython-312.pyc
 ³           __init__.cpython-311.pyc
+³           calculator.cpython-311.pyc
+³           calendar.cpython-311.pyc
 ³           catalog.cpython-311.pyc
-³           catalog.cpython-312.pyc
 ³           drug_detail.cpython-311.pyc
+³           pet_form.cpython-311.pyc
+³           profile.cpython-311.pyc
+³           pet_detail.cpython-311.pyc
+³           appointment_detail.cpython-311.pyc
 ³           
 ÃÄÄÄ__pycache__
 ÃÄÄÄmodels
@@ -85,13 +85,9 @@ I:.
 ³   ÀÄÄÄ__pycache__
 ³           __init__.cpython-311.pyc
 ³           database.cpython-311.pyc
-³           __init__.cpython-312.pyc
 ³           database.cpython-312.pyc
+³           __init__.cpython-312.pyc
 ³           
-ÃÄÄÄdata
-³       rubikon.db
-³       rubikon.db.bak-20260906-150638
-³       
 ÃÄÄÄvenv
 ³   ³   pyvenv.cfg
 ³   ³   
@@ -7035,12 +7031,29 @@ I:.
 ³   ³   .gitignore
 ³   ³   
 ³   ÀÄÄÄ0.16.6
-³           10626135426068007152
 ³           15138472898302257843
 ³           2223968021806145034
+³           10626135426068007152
 ³           
-ÀÄÄÄbackup
-        rubikon.db.bak-20260910-125620
-        rubikon.db.bak-20260910-131531
-        rubikon.db.bak-20260910-132616
+ÃÄÄÄbackup
+³       rubikon.db.bak-20260911-125833
+³       rubikon.db.bak-20260911-130117
+³       rubikon.db.bak-20260911-130732
+³       rubikon.db.bak-20260911-134657
+³       rubikon.db.bak-20260911-135037
+³       
+ÃÄÄÄmedia
+³   ÀÄÄÄpets
+³           pet-20260910-164811.jpg
+³           pet-20260910-204037.jpg
+³           pet-20260910-215345.webp
+³           pet-20260910-221553.jpg
+³           pet-20260910-222148.jpg
+³           pet-20260910-222431.jpg
+³           pet-20260911-110503.png
+³           pet-20260911-135138.png
+³           
+ÀÄÄÄdata
+        rubikon.db
+        rubikon.db.bak-20260906-150638
         
