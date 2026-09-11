@@ -1,0 +1,285 @@
+#:import C models.theme
+
+# PetDetailScreen — редизайн «PetsHealth»:
+# белая шапка (мина №6 закрыта), светлый фон, белые карточки
+# с тонкой рамкой, бирюзовые акценты.
+
+<PetDetailScreen>:
+    name: "pet_detail"
+    md_bg_color: C.BG
+
+    MDBoxLayout:
+        orientation: "vertical"
+
+        # Шапка — БЕЛАЯ, тёмный текст (как на остальных экранах)
+        MDBoxLayout:
+            orientation: "horizontal"
+            adaptive_height: True
+            padding: dp(10), dp(10)
+            md_bg_color: C.CARD
+
+            MDIconButton:
+                icon: "arrow-left"
+                icon_color: C.TEXT_MAIN
+                on_release: root.go_back()
+
+            MDLabel:
+                text: "Карточка питомца"
+                font_size: "16sp"
+                adaptive_height: True
+                theme_text_color: "Custom"
+                text_color: C.TEXT_MAIN
+                bold: True
+                pos_hint: {"center_y": 0.5}
+
+        MDDivider:
+            size_hint_y: None
+            height: dp(1)
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                padding: dp(16)
+                spacing: dp(14)
+
+                # ═══ Фото питомца — простое, по центру ═══
+                MDBoxLayout:
+                    id: photo_box
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: dp(140)
+
+                # Основная информация (белая карточка)
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    md_bg_color: C.CARD
+                    line_color: C.CARD_BORDER
+                    radius: [dp(14)]
+                    padding: dp(14)
+                    spacing: dp(2)
+
+                    MDLabel:
+                        id: pet_name
+                        text: ""
+                        font_size: "20sp"
+                        theme_text_color: "Custom"
+                        text_color: C.TEXT_MAIN
+                        bold: True
+                        adaptive_height: True
+
+                    MDLabel:
+                        id: pet_species
+                        text: ""
+                        font_size: "13sp"
+                        theme_text_color: "Custom"
+                        text_color: C.TEXT_SUB
+                        adaptive_height: True
+                        text_size: self.width, None
+
+                    MDDivider:
+                        size_hint_y: None
+                        height: dp(1)
+                        padding: dp(0), dp(4)
+
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(48)
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            size_hint_x: 1
+                            MDLabel:
+                                text: "Размер"
+                                font_size: "10sp"
+                                theme_text_color: "Custom"
+                                text_color: C.TEXT_SUB
+                                halign: "center"
+                            MDLabel:
+                                id: pet_size
+                                text: ""
+                                font_size: "13sp"
+                                theme_text_color: "Custom"
+                                text_color: C.PRIMARY_DARK
+                                bold: True
+                                halign: "center"
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            size_hint_x: 1
+                            MDLabel:
+                                text: "Возраст"
+                                font_size: "10sp"
+                                theme_text_color: "Custom"
+                                text_color: C.TEXT_SUB
+                                halign: "center"
+                            MDLabel:
+                                id: pet_age
+                                text: ""
+                                font_size: "13sp"
+                                theme_text_color: "Custom"
+                                text_color: C.PRIMARY_DARK
+                                bold: True
+                                halign: "center"
+
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            size_hint_x: 1
+                            MDLabel:
+                                text: "Вес"
+                                font_size: "10sp"
+                                theme_text_color: "Custom"
+                                text_color: C.TEXT_SUB
+                                halign: "center"
+                            MDLabel:
+                                id: pet_weight
+                                text: ""
+                                font_size: "13sp"
+                                theme_text_color: "Custom"
+                                text_color: C.PRIMARY_DARK
+                                bold: True
+                                halign: "center"
+
+                # ═══ Назначенное лечение ═══
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(8)
+
+                    MDLabel:
+                        text: "Назначенное лечение"
+                        font_size: "16sp"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: C.TEXT_MAIN
+                        bold: True
+
+                    MDBoxLayout:
+                        id: treatment_list
+                        orientation: "vertical"
+                        adaptive_height: True
+                        spacing: dp(6)
+
+                # Дополнительные сведения (белая карточка)
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    md_bg_color: C.CARD
+                    line_color: C.CARD_BORDER
+                    radius: [dp(14)]
+                    padding: dp(14)
+                    spacing: dp(6)
+
+                    MDLabel:
+                        text: "Дополнительные сведения"
+                        font_size: "14sp"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: C.TEXT_MAIN
+                        bold: True
+
+                    MDLabel:
+                        id: pet_history
+                        text: ""
+                        font_size: "13sp"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: C.TEXT_MAIN
+
+                # Выбор препарата
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(8)
+
+                    MDBoxLayout:
+                        adaptive_height: True
+                        spacing: dp(8)
+                        MDLabel:
+                            text: "Подходящие препараты"
+                            font_size: "16sp"
+                            adaptive_height: True
+                            theme_text_color: "Custom"
+                            text_color: C.TEXT_MAIN
+                            bold: True
+                        MDLabel:
+                            id: drugs_count
+                            text: ""
+                            font_size: "12sp"
+                            theme_text_color: "Secondary"
+                            pos_hint: {"center_y": 0.5}
+
+                    MDTextField:
+                        id: drug_field
+                        mode: "outlined"
+                        readonly: True
+                        on_focus: root.open_drug_menu(self, args[1])
+
+                        MDTextFieldHintText:
+                            text: "Выбрать препарат"
+
+                        MDTextFieldLeadingIcon:
+                            icon: "pill"
+
+                        MDTextFieldTrailingIcon:
+                            icon: "chevron-down"
+
+                # Кнопка → переход в календарь
+                MDButton:
+                    style: "filled"
+                    size_hint_x: 1
+                    size_hint_y: None
+                    height: dp(48)
+                    theme_bg_color: "Custom"
+                    md_bg_color: C.PRIMARY
+                    on_release: root.go_to_calendar()
+
+                    MDButtonIcon:
+                        icon: "calendar-plus"
+                        icon_color: 1, 1, 1, 1
+
+                    MDButtonText:
+                        text: "Отметить напоминание в календаре"
+                        font_size: "14sp"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        bold: True
+
+                # ═══ История назначений — РАЗВОРАЧИВАЮЩАЯСЯ ═══
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+
+                    MDButton:
+                        style: "text"
+                        size_hint_y: None
+                        height: dp(40)
+                        on_release: root.toggle_history()
+
+                        MDButtonText:
+                            id: history_toggle_text
+                            text: "История назначений (0)"
+                            font_size: "16sp"
+                            theme_text_color: "Custom"
+                            text_color: C.PRIMARY_DARK
+                            bold: True
+
+                        MDButtonIcon:
+                            id: history_arrow
+                            icon: "chevron-down"
+                            icon_color: C.PRIMARY
+
+                    MDBoxLayout:
+                        id: history_container
+                        orientation: "vertical"
+                        adaptive_height: True
+                        opacity: 0
+                        size_hint_y: None
+                        height: 0
+
+                        MDBoxLayout:
+                            id: prescriptions_list
+                            orientation: "vertical"
+                            adaptive_height: True
+                            spacing: dp(4)
