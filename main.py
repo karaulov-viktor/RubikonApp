@@ -33,6 +33,7 @@ from screens.drug_detail import DrugDetailScreen
 from screens.pet_form import PetFormScreen
 from screens.profile import ProfileScreen
 from screens.pet_detail import PetDetailScreen
+from screens.appointment_detail import AppointmentDetailScreen
 
 
 def backup_database(keep=5):
@@ -83,6 +84,7 @@ class RubikonApp(MDApp):
         Builder.load_file("kv/calendar.kv")
         Builder.load_file("kv/pet_form.kv")
         Builder.load_file("kv/pet_detail.kv")
+        Builder.load_file("kv/appointment_detail.kv")
 
         self.root = Builder.load_file("kv/root.kv")
 

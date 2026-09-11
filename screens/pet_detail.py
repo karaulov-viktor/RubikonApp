@@ -1,5 +1,17 @@
 """
-Детальная карточка питомца — Спринт 2.5 (исправленная версия)
+Детальная карточка питомца — Спринт 2.6 (редизайн истории назначений)
+
+Что изменилось по сравнению со спринтом 2.5:
+  1. Центрирование теперь настоящее. В Kivy halign работает ТОЛЬКО
+     вместе с text_size, поэтому каждая надпись получает text_size
+     (см. _wrap_label).
+  2. Длинные названия переносятся по словам, карточки растут
+     по содержимому (см. _grow_with_content).
+  3. Тап по карточке открывает отдельный экран «Детали назначения»
+     (screens/appointment_detail.py) вместо MDDialog — диалог на
+     части видеокарт падает с FBO 36054, как и снекбар.
+  4. Все карточки создаются с НЕнулевой высотой: виджет с высотой 0
+     при рождении тоже роняет FBO на слабых видеокартах.
 """
 
 import os
@@ -10,14 +22,19 @@ from kivy.app import App
 from kivy.metrics import dp
 from kivy.uix.image import Image
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDButton, MDButtonText, MDIconButton
 from kivymd.uix.card import MDCard
-from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.screen import MDScreen
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Фирменные цвета «Рубикон Агент» — в одном месте, чтобы не дублировать
+GREEN_DARK = (0.118, 0.302, 0.125, 1)   # тёмно-зелёные заголовки
+GREEN_BG = (0.906, 0.937, 0.878, 1)     # фон карточек лечения
+GREY_BG = (0.96, 0.96, 0.96, 1)         # фон карточек истории
+GREY_TEXT = (0.45, 0.45, 0.45, 1)       # вторичный текст
+DARK_TEXT = (0.13, 0.13, 0.13, 1)       # основной текст
 
 
 class PetDetailScreen(MDScreen):
@@ -31,6 +48,53 @@ class PetDetailScreen(MDScreen):
         self.selected_drug_name = ""
         self._menu = None
         self._history_expanded = False
+
+    # ═══════════════════════════════════════════════════════
+    # ПОМОЩНИКИ ВЁРСТКИ (мини-урок: halign без text_size молчит)
+    # ═══════════════════════════════════════════════════════
+
+    @staticmethod
+    def _wrap_label(text, **kwargs):
+        """
+        MDLabel: по центру, с переносом по словам и авто-высотой.
+
+        Почему так: в Kivy halign/valign учитываются только когда
+        задан text_size. Поэтому мы привязываем text_size к ширине
+        метки — как только вёрстка выделит метке место, текст узнает
+        свою ширину, сможет центрироваться и переноситься.
+        adaptive_height подтягивает высоту метки к высоте текста.
+        """
+        label = MDLabel(
+            text=text,
+            halign="center",
+            adaptive_height=True,
+            **kwargs,
+        )
+        label.bind(
+            width=lambda inst, w: setattr(inst, "text_size", (w, None))
+        )
+        return label
+
+    @staticmethod
+    def _grow_with_content(card, birth_height):
+        """
+        Карточка рождается с ненулевой высотой (требование FBO —
+        нулевая высота при рождении падает с ошибкой 36054),
+        а дальше растёт по содержимому.
+
+        Важно: minimum_height НЕ включает padding карточки,
+        поэтому верхний и нижний отступы добавляем вручную.
+        """
+        card.height = birth_height
+        card.bind(
+            minimum_height=lambda inst, val: setattr(
+                inst, "height", val + inst.padding[1] + inst.padding[3]
+            )
+        )
+
+    # ═══════════════════════════════════════════════════════
+    # ЗАГРУЗКА ДАННЫХ ПИТОМЦА
+    # ═══════════════════════════════════════════════════════
 
     def on_enter(self):
         if self.current_pet_id:
@@ -75,17 +139,20 @@ class PetDetailScreen(MDScreen):
                 fit_mode="cover",
                 size_hint=(None, None),
                 size=(dp(120), dp(120)),
-                pos_hint={"center_x": 0.5},
+                pos_hint={"center_x": 0.5, "center_y": 0.5},
             )
             photo_box.add_widget(img)
         else:
+            # Явный размер + pos_hint: иначе иконка прилипает к краю
             photo_box.add_widget(
                 MDIcon(
                     icon="paw",
                     font_size="80sp",
                     theme_text_color="Custom",
                     text_color=(0.18, 0.49, 0.2, 1),
-                    halign="center",
+                    size_hint=(None, None),
+                    size=(dp(90), dp(90)),
+                    pos_hint={"center_x": 0.5, "center_y": 0.5},
                 )
             )
 
@@ -200,7 +267,7 @@ class PetDetailScreen(MDScreen):
         app.root.ids.screen_manager.current = "calendar"
 
     # ═══════════════════════════════════════════════════════
-    # НАЗНАЧЕННОЕ ЛЕЧЕНИЕ (исправлено)
+    # НАЗНАЧЕННОЕ ЛЕЧЕНИЕ
     # ═══════════════════════════════════════════════════════
 
     def _load_prescribed_treatment(self):
@@ -214,12 +281,10 @@ class PetDetailScreen(MDScreen):
 
         if not pet_reminders:
             treatment_box.add_widget(
-                MDLabel(
-                    text="Нет назначенного лечения",
-                    halign="center",
-                    theme_text_color="Secondary",
-                    adaptive_height=True,
+                self._wrap_label(
+                    "Нет назначенного лечения",
                     font_size="13sp",
+                    theme_text_color="Secondary",
                 )
             )
             return
@@ -229,13 +294,17 @@ class PetDetailScreen(MDScreen):
             treatment_box.add_widget(card)
 
     def _create_treatment_card(self, reminder):
-        """Создать кликабельную карточку назначенного лечения."""
+        """Карточка активного лечения. Тап → экран деталей."""
         (reminder_id, pet_id, drug_id, start_date, end_date, time) = reminder
 
         app = App.get_running_app()
         drug = app.db.get_drug_by_id(drug_id)
         if not drug:
-            return MDLabel(text="Препарат не найден")
+            return self._wrap_label(
+                "Препарат не найден",
+                font_size="13sp",
+                theme_text_color="Secondary",
+            )
 
         drug_name = drug[1]
         category = drug[2] or ""
@@ -243,158 +312,73 @@ class PetDetailScreen(MDScreen):
         dose_per_kg = drug[7] if len(drug) > 7 else 0
         duration_days = drug[9] if len(drug) > 9 else 0
 
+        # НЕНУЛЕВАЯ высота при рождении — иначе FBO падает (36054)
         card = MDCard(
             orientation="vertical",
             size_hint_y=None,
-            height=dp(85),
-            padding=[dp(14), dp(10), dp(14), dp(10)],
-            spacing=dp(6),
+            height=dp(96),
+            padding=[dp(14), dp(12), dp(14), dp(12)],
+            spacing=dp(4),
             radius=[dp(12)],
-            md_bg_color=(0.906, 0.937, 0.878, 1),
+            md_bg_color=GREEN_BG,
             elevation=1,
             ripple_behavior=True,
         )
+        self._grow_with_content(card, dp(96))
 
-        # Сохраняем данные для модального окна
-        card._drug_data = {
-            "name": drug_name,
-            "category": category,
-            "description": description,
-            "dose_per_kg": dose_per_kg,
-            "duration_days": duration_days,
-            "start_date": start_date,
-            "end_date": end_date,
-            "time": time,
+        card._detail = {
+            "title": drug_name,
+            "subtitle": category or "Назначенное лечение",
+            "fields": self._build_treatment_fields(
+                description, start_date, end_date, time,
+                dose_per_kg, duration_days,
+            ),
         }
+        card.bind(on_release=self._open_detail)
 
-        card.bind(on_release=self._show_drug_info)
-
-        # Центрированный контейнер
-        center_box = MDBoxLayout(
-            orientation="vertical",
-            size_hint=(1, 1),
-            spacing=dp(4),
-            padding=[0, dp(8), 0, dp(8)],
-        )
-
-        # Название препарата (по центру)
-        center_box.add_widget(
-            MDLabel(
-                text=drug_name,
-                font_size="15sp",
-                theme_text_color="Custom",
-                text_color=(0.18, 0.49, 0.2, 1),
-                bold=True,
-                halign="center",
-            )
-        )
-
-        # Период (по центру)
-        center_box.add_widget(
-            MDLabel(
-                text=f"{start_date} — {end_date}  ⏰ {time}",
-                font_size="12sp",
-                theme_text_color="Custom",
-                text_color=(0.4, 0.4, 0.4, 1),
-                halign="center",
-            )
-        )
-
-        # Категория (по центру)
+        card.add_widget(self._wrap_label(
+            drug_name,
+            font_size="15sp",
+            bold=True,
+            theme_text_color="Custom",
+            text_color=GREEN_DARK,
+        ))
+        card.add_widget(self._wrap_label(
+            f"{start_date} — {end_date} · {time}",
+            font_size="12sp",
+            theme_text_color="Custom",
+            text_color=GREY_TEXT,
+        ))
         if category:
-            center_box.add_widget(
-                MDLabel(
-                    text=category,
-                    font_size="11sp",
-                    theme_text_color="Secondary",
-                    halign="center",
-                )
-            )
-
-        card.add_widget(center_box)
+            card.add_widget(self._wrap_label(
+                category,
+                font_size="11sp",
+                theme_text_color="Secondary",
+            ))
         return card
 
-    def _show_drug_info(self, card, *args):
-        """Показать модальное окно с информацией о препарате."""
-        data = card._drug_data
-
-        # Формируем текст
-        lines = []
-
-        if data['category']:
-            lines.append(f"Категория: {data['category']}")
-
-        if data['description']:
-            lines.append("")
-            lines.append(data['description'])
-
-        lines.append("")
-        lines.append(f"Период лечения: {data['start_date']} — {data['end_date']}")
-        lines.append(f"Время приёма: {data['time']}")
-
-        if data['dose_per_kg'] and data['dose_per_kg'] > 0:
-            lines.append("")
-            lines.append(f"Дозировка: {self._fmt(data['dose_per_kg'])} мг/кг")
+    def _build_treatment_fields(self, description, start_date, end_date,
+                                time, dose_per_kg, duration_days):
+        """Пары (подпись, значение) для экрана деталей."""
+        fields = []
+        if description:
+            fields.append(("Описание", description))
+        fields.append(("Период лечения", f"{start_date} — {end_date}"))
+        fields.append(("Время приёма", str(time)))
+        if dose_per_kg and dose_per_kg > 0:
+            fields.append(("Дозировка", f"{self._fmt(dose_per_kg)} мг/кг"))
             if self.current_pet_weight > 0:
-                dose_mg = self.current_pet_weight * data['dose_per_kg']
-                lines.append(f"На вес {self._fmt(self.current_pet_weight)} кг: {self._fmt(dose_mg)} мг")
-
-        if data['duration_days'] and data['duration_days'] > 0:
-            lines.append(f"Курс лечения: {data['duration_days']} дней")
-
-        detail_text = "\n".join(lines)
-
-        # Создаём контент диалога
-        content = MDBoxLayout(
-            orientation="vertical",
-            adaptive_height=True,
-            padding=[dp(20), dp(16), dp(20), dp(16)],
-            spacing=dp(16),
-        )
-
-        # Заголовок
-        content.add_widget(
-            MDLabel(
-                text=data['name'],
-                font_size="20sp",
-                halign="center",
-                adaptive_height=True,
-                bold=True,
-                theme_text_color="Custom",
-                text_color=(0.18, 0.49, 0.2, 1),
-            )
-        )
-
-        # Основной текст
-        content.add_widget(
-            MDLabel(
-                text=detail_text,
-                font_size="14sp",
-                halign="left",
-                adaptive_height=True,
-                text_size=(dp(300), None),
-                theme_text_color="Custom",
-                text_color=(0.2, 0.2, 0.2, 1),
-            )
-        )
-
-        # Кнопка закрытия
-        content.add_widget(
-            MDButton(
-                MDButtonText(text="Закрыть"),
-                style="filled",
-                theme_bg_color="Custom",
-                md_bg_color=(0.18, 0.49, 0.2, 1),
-                on_release=lambda *_: dialog.dismiss(),
-                size_hint_x=1,
-            )
-        )
-
-        dialog = MDDialog(content)
-        dialog.open()
+                dose_mg = self.current_pet_weight * dose_per_kg
+                fields.append((
+                    f"На вес {self._fmt(self.current_pet_weight)} кг",
+                    f"{self._fmt(dose_mg)} мг на один приём",
+                ))
+        if duration_days and duration_days > 0:
+            fields.append(("Курс лечения", f"{duration_days} дн."))
+        return fields
 
     # ═══════════════════════════════════════════════════════
-    # ИСТОРИЯ НАЗНАЧЕНИЙ (исправлено)
+    # ИСТОРИЯ НАЗНАЧЕНИЙ
     # ═══════════════════════════════════════════════════════
 
     def _load_prescriptions_history(self):
@@ -412,7 +396,13 @@ class PetDetailScreen(MDScreen):
         )
 
         if not prescriptions:
-            self.ids.history_toggle_text.text = "История назначений (0)"
+            history_box.add_widget(
+                self._wrap_label(
+                    "Назначений пока нет",
+                    font_size="13sp",
+                    theme_text_color="Secondary",
+                )
+            )
             return
 
         for prescription in prescriptions:
@@ -420,186 +410,108 @@ class PetDetailScreen(MDScreen):
             history_box.add_widget(card)
 
     def _create_history_card(self, prescription):
-        """Создать карточку истории."""
+        """Карточка истории. Тап → экран деталей."""
         (presc_id, prescribed_date, drug_name, category,
          dose_per_kg, concentration, duration_days, notes) = prescription
 
         card = MDCard(
             orientation="vertical",
             size_hint_y=None,
-            height=dp(70),  # Увеличена высота
-            padding=[dp(14), dp(8), dp(14), dp(8)],  # Увеличен padding
-            spacing=dp(4),  # Увеличен spacing
+            height=dp(72),
+            padding=[dp(14), dp(10), dp(14), dp(10)],
+            spacing=dp(6),
             radius=[dp(10)],
-            md_bg_color=(0.96, 0.96, 0.96, 1),
+            md_bg_color=GREY_BG,
             elevation=0,
             ripple_behavior=True,
         )
+        self._grow_with_content(card, dp(72))
 
-        card._presc_data = {
-            "id": presc_id,
-            "date": prescribed_date,
-            "drug": drug_name,
-            "category": category,
-            "dose_per_kg": dose_per_kg,
-            "concentration": concentration,
-            "duration_days": duration_days,
-            "notes": notes or "",
-        }
-
-        card.bind(on_release=self._show_prescription_detail)
-
-        # Первая строка - дата и название
-        header = MDBoxLayout(
-            adaptive_height=True,
-            spacing=dp(8),
-        )
-        header.add_widget(
-            MDLabel(
-                text=prescribed_date[:10],
-                font_size="12sp",
-                theme_text_color="Custom",
-                text_color=(0.5, 0.5, 0.5, 1),
-                size_hint_x=None,
-                width=dp(80),
-                halign="left",
-            )
-        )
-        header.add_widget(
-            MDLabel(
-                text=drug_name,
-                font_size="14sp",
-                theme_text_color="Custom",
-                text_color=(0.13, 0.13, 0.13, 1),
-                bold=True,
-                halign="left",
-            )
-        )
-        header.add_widget(
-            MDIcon(
-                icon="chevron-right",
-                icon_color=(0.5, 0.5, 0.5, 1),
-                size_hint_x=None,
-                width=dp(24),
-                halign="right",
-            )
-        )
-        card.add_widget(header)
-
-        # Вторая строка - доза и курс
-        details = MDBoxLayout(
-            adaptive_height=True,
-            spacing=dp(12),
-        )
-
+        # Короткая сводка второй строкой: дата · доза · курс
         if dose_per_kg and dose_per_kg > 0:
-            dose_text = f"Доза: {self._fmt(dose_per_kg)} мг/кг"
+            summary = f"Доза: {self._fmt(dose_per_kg)} мг/кг"
         else:
-            dose_text = "Доза: по инструкции"
-
-        details.add_widget(
-            MDLabel(
-                text=dose_text,
-                font_size="12sp",
-                theme_text_color="Custom",
-                text_color=(0.45, 0.45, 0.45, 1),
-                halign="left",
-            )
-        )
-
+            summary = "Доза: по инструкции"
         if duration_days and duration_days > 0:
-            details.add_widget(
-                MDLabel(
-                    text=f"Курс: {duration_days} дн.",
-                    font_size="12sp",
-                    theme_text_color="Custom",
-                    text_color=(0.45, 0.45, 0.45, 1),
-                    halign="left",
-                )
-            )
+            summary += f" · Курс: {duration_days} дн."
 
-        card.add_widget(details)
+        card._detail = {
+            "title": drug_name,
+            "subtitle": f"Назначено {prescribed_date[:10]}",
+            "fields": self._build_prescription_fields(
+                category, dose_per_kg, concentration, duration_days, notes,
+            ),
+        }
+        card.bind(on_release=self._open_detail)
+
+        # Верхняя строка: название (переносится) + стрелка
+        top = MDBoxLayout(adaptive_height=True, spacing=dp(8))
+        top.add_widget(self._wrap_label(
+            drug_name,
+            font_size="14sp",
+            bold=True,
+            theme_text_color="Custom",
+            text_color=DARK_TEXT,
+        ))
+        top.add_widget(MDIcon(
+            icon="chevron-right",
+            theme_text_color="Custom",
+            text_color=(0.5, 0.5, 0.5, 1),
+            size_hint=(None, None),
+            size=(dp(24), dp(24)),
+            pos_hint={"center_y": 0.5},
+        ))
+        card.add_widget(top)
+
+        # Нижняя строка: дата и доза — одной спокойной строкой
+        card.add_widget(self._wrap_label(
+            f"{prescribed_date[:10]} · {summary}",
+            font_size="12sp",
+            theme_text_color="Custom",
+            text_color=GREY_TEXT,
+        ))
         return card
 
-    def _show_prescription_detail(self, card, *args):
-        """Показать модальное окно с деталями."""
-        data = card._presc_data
-
-        # Формируем текст
-        lines = []
-        lines.append(f"Дата назначения: {data['date'][:10]}")
-
-        if data['category']:
-            lines.append(f"Категория: {data['category']}")
-
-        if data['dose_per_kg'] and data['dose_per_kg'] > 0:
-            lines.append(f"Дозировка: {self._fmt(data['dose_per_kg'])} мг/кг")
+    def _build_prescription_fields(self, category, dose_per_kg,
+                                   concentration, duration_days, notes):
+        """Пары (подпись, значение) для экрана деталей истории."""
+        fields = []
+        if category:
+            fields.append(("Категория", category))
+        if dose_per_kg and dose_per_kg > 0:
+            fields.append(("Дозировка", f"{self._fmt(dose_per_kg)} мг/кг"))
             if self.current_pet_weight > 0:
-                dose_mg = self.current_pet_weight * data['dose_per_kg']
-                lines.append(f"На вес {self._fmt(self.current_pet_weight)} кг: {self._fmt(dose_mg)} мг")
-                if data['concentration'] and data['concentration'] > 0:
-                    volume = dose_mg / data['concentration']
-                    lines.append(f"Объём в шприц: {self._fmt(volume)} мл")
+                dose_mg = self.current_pet_weight * dose_per_kg
+                fields.append((
+                    f"На вес {self._fmt(self.current_pet_weight)} кг",
+                    f"{self._fmt(dose_mg)} мг",
+                ))
+                if concentration and concentration > 0:
+                    volume = dose_mg / concentration
+                    fields.append((
+                        "Объём в шприц",
+                        f"{self._fmt(volume)} мл "
+                        f"(концентрация {self._fmt(concentration)} мг/мл)",
+                    ))
         else:
-            lines.append("Дозировка: по инструкции")
+            fields.append(("Дозировка", "по инструкции"))
+        if duration_days and duration_days > 0:
+            fields.append(("Курс лечения", f"{duration_days} дн."))
+        if notes:
+            fields.append(("Заметки", notes))
+        return fields
 
-        if data['duration_days'] and data['duration_days'] > 0:
-            lines.append(f"Курс лечения: {data['duration_days']} дней")
-
-        if data['notes']:
-            lines.append("")
-            lines.append(data['notes'])
-
-        detail_text = "\n".join(lines)
-
-        # Создаём контент диалога
-        content = MDBoxLayout(
-            orientation="vertical",
-            adaptive_height=True,
-            padding=[dp(20), dp(16), dp(20), dp(16)],
-            spacing=dp(16),
+    def _open_detail(self, card, *args):
+        """Открыть экран «Детали назначения» для карточки."""
+        app = App.get_running_app()
+        screen_manager = app.root.ids.screen_manager
+        detail = screen_manager.get_screen("appointment_detail")
+        detail.show_detail(
+            card._detail["title"],
+            card._detail["subtitle"],
+            card._detail["fields"],
         )
-
-        # Заголовок
-        content.add_widget(
-            MDLabel(
-                text=data['drug'],
-                font_size="20sp",
-                halign="center",
-                adaptive_height=True,
-                bold=True,
-                theme_text_color="Custom",
-                text_color=(0.18, 0.49, 0.2, 1),
-            )
-        )
-
-        # Основной текст
-        content.add_widget(
-            MDLabel(
-                text=detail_text,
-                font_size="14sp",
-                halign="left",
-                adaptive_height=True,
-                text_size=(dp(300), None),
-                theme_text_color="Custom",
-                text_color=(0.2, 0.2, 0.2, 1),
-            )
-        )
-
-        # Кнопка закрытия
-        content.add_widget(
-            MDButton(
-                MDButtonText(text="Закрыть"),
-                style="filled",
-                theme_bg_color="Custom",
-                md_bg_color=(0.18, 0.49, 0.2, 1),
-                on_release=lambda *_: dialog.dismiss(),
-                size_hint_x=1,
-            )
-        )
-
-        dialog = MDDialog(content)
-        dialog.open()
+        screen_manager.current = "appointment_detail"
 
     def toggle_history(self, *args):
         """Развернуть/свернуть историю назначений."""

@@ -1,0 +1,81 @@
+<AppointmentDetailScreen>:
+    name: "appointment_detail"
+    md_bg_color: 1, 1, 1, 1
+
+    MDBoxLayout:
+        orientation: "vertical"
+
+        # Шапка — в том же стиле, что на карточке питомца
+        MDBoxLayout:
+            orientation: "horizontal"
+            adaptive_height: True
+            padding: dp(10), dp(10)
+            md_bg_color: 0.18, 0.49, 0.2, 1
+
+            MDIconButton:
+                icon: "arrow-left"
+                icon_color: 1, 1, 1, 1
+                on_release: root.go_back()
+
+            MDLabel:
+                text: "Детали назначения"
+                font_size: "16sp"
+                adaptive_height: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                bold: True
+                pos_hint: {"center_y": 0.5}
+
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                adaptive_height: True
+                padding: dp(16)
+                spacing: dp(14)
+
+                # Карточка деталей.
+                # height = minimum_height + dp(36): minimum_height не
+                # учитывает верхний и нижний padding (dp(18) + dp(18)).
+                # При рождении kv-виджет получает стандартный размер
+                # 100x100, поэтому FBO создаётся без нулевых измерений.
+                MDCard:
+                    orientation: "vertical"
+                    size_hint_y: None
+                    height: self.minimum_height + dp(36)
+                    padding: dp(18)
+                    spacing: dp(12)
+                    radius: [dp(16)]
+                    md_bg_color: 0.906, 0.937, 0.878, 1
+                    elevation: 1
+
+                    MDLabel:
+                        id: detail_title
+                        text: ""
+                        font_size: "20sp"
+                        bold: True
+                        halign: "center"
+                        text_size: self.width, None
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.118, 0.302, 0.125, 1
+
+                    MDLabel:
+                        id: detail_subtitle
+                        text: ""
+                        font_size: "13sp"
+                        halign: "center"
+                        text_size: self.width, None
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: 0.3, 0.3, 0.3, 1
+
+                    MDDivider:
+                        size_hint_y: None
+                        height: dp(1)
+                        padding: dp(0), dp(4)
+
+                    MDBoxLayout:
+                        id: fields_box
+                        orientation: "vertical"
+                        adaptive_height: True
+                        spacing: dp(14)
