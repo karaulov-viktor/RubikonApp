@@ -1,11 +1,10 @@
-# root.kv — RubikonApp
-# Изменение от 2026-09-06 (одно-единственное, остальное не тронуто):
-#   MDNavigationBar добавлен md_bg_color: 1, 1, 1, 1 (белый).
-#
-# ЗАЧЕМ: панель навигации internally красится через
-# theme_cls.backgroundColor, который в сборке KivyMD 2.0.1.dev0
-# на машинах пользователя разрешается в ЧЁРНЫЙ — панель была чёрной.
-# Явный белый делает её белой, как остальные экраны.
+# root.kv — RubikonApp (объединённый: спринты 1-2.6 + «Питомцы»)
+# Экраны: splash, disclaimer (новый), catalog, drug_detail, profile,
+# pet_form, pet_detail (личная страница), pet_treatment (лечение,
+# бывший pet_detail спринтов 1-2.6), appointment_detail, calculator,
+# calendar.
+# Белая нижняя панель — явный md_bg_color (урок чёрного навбара на
+# KivyMD 2.0.1.dev0 у пользователя).
 
 MDBoxLayout:
     orientation: "vertical"
@@ -16,6 +15,9 @@ MDBoxLayout:
         SplashScreen:
             name: "splash"
 
+        DisclaimerScreen:
+            name: "disclaimer"
+
         CatalogScreen:
             name: "catalog"
 
@@ -25,20 +27,23 @@ MDBoxLayout:
         ProfileScreen:
             name: "profile"
 
+        PetFormScreen:
+            name: "pet_form"
+
+        PetDetailScreen:
+            name: "pet_detail"
+
+        PetTreatmentScreen:
+            name: "pet_treatment"
+
+        AppointmentDetailScreen:
+            name: "appointment_detail"
+
         CalculatorScreen:
             name: "calculator"
 
         CalendarScreen:
             name: "calendar"
-
-        PetFormScreen:
-            name: "pet_form"
-
-        PetDetailScreen:        # ← ДОБАВИТЬ
-            name: "pet_detail"  # ← ДОБАВИТЬ
-
-        AppointmentDetailScreen:
-            name: "appointment_detail"
 
     MDNavigationBar:
         id: nav_bar

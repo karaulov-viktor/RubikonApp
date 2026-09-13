@@ -1,0 +1,64 @@
+#:import T models.theme
+
+<DisclaimerScreen>:
+    md_bg_color: T.BG
+
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: dp(20)
+        spacing: dp(14)
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "64dp"
+
+            MDIconButton:
+                icon: "shield-check-outline"
+                theme_icon_color: "Custom"
+                icon_color: T.GREEN
+                icon_size: "34sp"
+
+            MDLabel:
+                text: "Правовая информация"
+                font_style: "Headline"
+                role: "medium"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: T.GREEN
+                valign: "middle"
+
+        MDLabel:
+            id: legal_text
+            text: ""
+            markup: True
+            halign: "left"
+            theme_text_color: "Custom"
+            text_color: T.TEXT_MAIN
+            size_hint_y: 1
+            text_size: (self.width, None)
+            valign: "top"
+
+        MDLabel:
+            text: "Прочитайте текст полностью, чтобы пользоваться приложением"
+            halign: "center"
+            theme_text_color: "Custom"
+            text_color: T.TEXT_SUB
+            size_hint_y: None
+            height: "26dp"
+
+        MDButton:
+            id: btn_accept
+            style: "filled"
+            size_hint_y: None
+            height: "50dp"
+            on_release: root.app.accept_disclaimer()
+            MDButtonText:
+                text: "Принимаю"
+
+        MDButton:
+            style: "text"
+            size_hint_y: None
+            height: "40dp"
+            on_release: root.app.decline_disclaimer()
+            MDButtonText:
+                text: "Не принимаю"

@@ -1,0 +1,3 @@
+UPDATE drugs
+   SET instruction = REPLACE(instruction, '#1F7F9C', '#177300')
+ WHERE instruction LIKE '%#1F7F9C%';

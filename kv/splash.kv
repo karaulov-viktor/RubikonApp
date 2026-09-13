@@ -1,50 +1,28 @@
-# ═══════════════════════════════════════════════════════
-# SPLASH SCREEN — «Рубикон Агент»
-# Редизайн «PetsHealth»: светлый фон, бирюзовый акцент
-# ═══════════════════════════════════════════════════════
-
-#:import C models.theme
+#:import T models.theme
 
 <SplashScreen>:
-    md_bg_color: C.BG  # светлый фон вместо зелёного
+    md_bg_color: T.GREEN
 
-    # Логотип по центру
     Image:
         source: 'img/logo.png'
         size_hint: (None, None)
-        size: (180, 180)
+        size: (200, 200)
         pos_hint: {'center_x': 0.5, 'center_y': 0.55}
 
-    # Название
     MDLabel:
-        text: "Рубикон"
+        text: "Рубиконт-Агент"
         halign: "center"
         theme_text_color: "Custom"
-        text_color: C.PRIMARY_DARK
+        text_color: "#ffffff"
         font_style: "Headline"
         role: "large"
-        font_size: "32sp"
-        bold: True
-        pos_hint: {'center_x': 0.5, 'center_y': 0.38}
+        pos_hint: {'center_x': 0.5, 'center_y': 0.35}
 
-    # Подзаголовок
     MDLabel:
-        text: "Агент"
+        text: "Ветеринарный помощник"
         halign: "center"
         theme_text_color: "Custom"
-        text_color: C.PRIMARY  # бирюзовый акцент
+        text_color: "#ffffff"
         font_style: "Title"
         role: "medium"
-        font_size: "18sp"
-        pos_hint: {'center_x': 0.5, 'center_y': 0.32}
-
-    # Версия внизу
-    MDLabel:
-        text: "Ветеринарный помощник v1.0"
-        halign: "center"
-        theme_text_color: "Custom"
-        text_color: C.TEXT_SUB
-        font_style: "Body"
-        role: "small"
-        font_size: "12sp"
-        pos_hint: {'center_x': 0.5, 'center_y': 0.08}
+        pos_hint: {"center_x": 0.5, "center_y": 0.28}

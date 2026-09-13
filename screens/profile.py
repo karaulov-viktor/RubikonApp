@@ -1,218 +1,137 @@
-"""
-Профиль питомцев — Спринт 2
-Клик на карточку открывает детальную анкету с назначенным лечением
-"""
+# -*- coding: utf-8 -*-
+"""Профиль: список карточек питомцев (спринт «Питомцы»).
 
-import os
-from functools import partial
+Карточка (по ТЗ): крупное имя, вторая строка — вид (+дата рождения),
+третья — порода и возраст (вычислен из даты рождения).
+Тап -> личная страница питомца (app.open_pet).
+Карточки строятся кодом из БД; kv держит только каркас.
 
-from kivy.app import App
+Важно: база может содержать и СТАРЫХ питомцев (спринты 1-2.6, без
+birth_date) — читаем поля через .get(), чтобы карточка не падала.
+"""
 from kivy.metrics import dp
-from kivy.uix.image import Image
-from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDIconButton, MDButton, MDButtonText
+from kivy.uix.boxlayout import BoxLayout
 from kivymd.uix.card import MDCard
-from kivymd.uix.dialog import (
-    MDDialog,
-    MDDialogButtonContainer,
-    MDDialogHeadlineText,
-    MDDialogSupportingText,
-)
+from kivymd.uix.fitimage import FitImage
 from kivymd.uix.label import MDIcon, MDLabel
 from kivymd.uix.screen import MDScreen
 
-from models.theme import CARD, CARD_BORDER, DANGER, PRIMARY, PRIMARY_SOFT, TEXT_MAIN, TEXT_SUB
+from models import database as db
+from models import theme as T
+from models.age_utils import fmt_display, format_age
+from models.image_utils import resolve_media
+from screens import AppMixin
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+class ProfileScreen(AppMixin, MDScreen):
 
-class ProfileScreen(MDScreen):
     def on_pre_enter(self, *args):
-        """Kivy вызывает это ПЕРЕД каждым показом экрана."""
-        self.refresh_cards()
+        self.refresh_pets()
 
-    def refresh_cards(self):
-        box = self.ids.cards_box
+    def refresh_pets(self):
+        """Перестраивает список карточек из БД."""
+        box = self.ids.pets_box
+        empty = self.ids.empty_lbl
         box.clear_widgets()
-        pets = App.get_running_app().db.get_pets()
-        if not pets:
-            # Пустое состояние
-            empty_box = MDBoxLayout(
-                orientation="vertical",
-                adaptive_height=True,
-                spacing=dp(12),
-                padding=dp(20),
-            )
-            empty_box.add_widget(
-                MDIcon(
-                    icon="paw",
-                    font_size="64sp",
-                    theme_text_color="Custom",
-                    text_color=PRIMARY_SOFT,
-                    halign="center",
-                )
-            )
-            empty_box.add_widget(
-                MDLabel(
-                    text="Питомцев пока нет",
-                    halign="center",
-                    font_style="Title",
-                    role="medium",
-                    theme_text_color="Custom",
-                    text_color=TEXT_MAIN,
-                )
-            )
-            empty_box.add_widget(
-                MDLabel(
-                    text="Нажмите + чтобы добавить первого питомца",
-                    halign="center",
-                    font_style="Body",
-                    role="medium",
-                    theme_text_color="Custom",
-                    text_color=TEXT_SUB,
-                )
-            )
-            box.add_widget(empty_box)
-            return
+
+        pets = db.get_pets()
+        empty.opacity = 0 if pets else 1
+        empty.text = ("Питомцев пока нет.\n"
+                      "Нажмите «+», чтобы добавить первого")
+
         for pet in pets:
-            box.add_widget(self._make_card(pet))
+            box.add_widget(self._build_card(pet))
 
-    def _make_card(self, pet):
-        pet_id, name, species, breed, _size, _age, _weight, _history, photo = pet
+        # состояние кнопки системных уведомлений
+        try:
+            enabled = self.app.is_system_notifications_enabled()
+        except Exception:
+            enabled = False
+        self.ids.btn_sysnotify.text = (
+            "Системные уведомления: ВКЛ" if enabled
+            else "Включить напоминания при закрытом приложении"
+        )
 
+    # ------------------------------------------------------------------
+    def _build_card(self, pet: dict) -> MDCard:
         card = MDCard(
             orientation="horizontal",
+            md_bg_color=T.CARD,
+            line_color=T.CARD_BORDER,
+            radius=[dp(16)],
+            padding=dp(12),
             size_hint_y=None,
-            height=dp(80),
-            padding=dp(10),
-            spacing=dp(10),
+            height=dp(104),
+            spacing=dp(12),
+            ripple_behavior=True,
+        )
+        card.bind(on_release=lambda *a, p=pet: self.app.open_pet(p["id"]))
+
+        # --- аватар ---
+        avatar_box = MDCard(
+            md_bg_color=T.GREEN_SOFT,
             radius=[dp(14)],
-            md_bg_color=CARD,
-            line_color=CARD_BORDER,
-            elevation=0,
+            size_hint=(None, None),
+            size=(dp(80), dp(80)),
+            pos_hint={"center_y": 0.5},
         )
-
-        # ═══ КЛИК НА КАРТОЧКУ → ОТКРЫТЬ АНКЕТУ ═══
-        card.bind(on_release=lambda instance, pid=pet_id: self.open_pet_detail(pid))
-
-        # Аватар
+        photo = pet.get("photo") or ""
         if photo:
-            avatar = Image(
-                source=os.path.join(BASE_DIR, photo),
-                fit_mode="cover",
-                size_hint=(None, None),
-                size=(dp(60), dp(60)),
-                pos_hint={"center_y": 0.5},
-            )
+            avatar_box.add_widget(FitImage(
+                source=resolve_media(photo),
+                radius=[dp(14)],
+            ))
         else:
-            avatar = MDIcon(
-                icon="paw",
-                icon_color=PRIMARY,
-                size_hint=(None, None),
-                size=(dp(60), dp(60)),
+            # заглушка: зелёный листок (MDIcon вместо эмодзи — эмодзи
+            # в Kivy на Windows не рендерится)
+            avatar_box.add_widget(MDIcon(
+                icon="leaf",
                 halign="center",
-                pos_hint={"center_y": 0.5},
-            )
-        card.add_widget(avatar)
+                valign="middle",
+                font_size="40sp",
+                theme_icon_color="Custom",
+                icon_color=T.GREEN,
+                pos_hint={"center_x": 0.5, "center_y": 0.5},
+            ))
+        card.add_widget(avatar_box)
 
-        # Информация
-        texts = MDBoxLayout(orientation="vertical", spacing=dp(2))
-        texts.add_widget(
-            MDLabel(
-                text=name,
-                font_style="Title",
-                role="medium",
-                adaptive_height=True,
-                theme_text_color="Custom",
-                text_color=TEXT_MAIN,
-            )
-        )
-        subtitle = species if species else ""
-        if breed:
-            subtitle = f"{subtitle} · {breed}" if subtitle else breed
-        texts.add_widget(
-            MDLabel(
-                text=subtitle if subtitle else " ",
-                font_style="Body",
-                role="small",
-                theme_text_color="Secondary",
-                adaptive_height=True,
-            )
-        )
-        card.add_widget(texts)
+        # --- текстовый блок: имя / вид / порода+возраст ---
+        name = pet.get("name") or "Без имени"
+        species = (pet.get("species") or "").strip()
+        breed = (pet.get("breed") or "").strip()
+        birth = pet.get("birth_date") or ""
 
-        # Кнопки
-        edit_btn = MDIconButton(
-            icon="pencil",
-            icon_color=PRIMARY,
-            pos_hint={"center_y": 0.5},
-            on_release=partial(self.open_edit, pet_id),
-        )
-        del_btn = MDIconButton(
-            icon="trash-can",
-            icon_color=DANGER,
-            pos_hint={"center_y": 0.5},
-            on_release=partial(self.confirm_delete, pet_id, name),
-        )
-        card.add_widget(edit_btn)
-        card.add_widget(del_btn)
+        col = BoxLayout(orientation="vertical", padding=[dp(4), 0])
+        col.add_widget(MDLabel(
+            text=name,
+            font_style="Headline",
+            role="small",
+            bold=True,
+            theme_text_color="Custom",
+            text_color=T.GREEN,
+            size_hint_y=None,
+            height=dp(30),
+        ))
+        second = species if species else "вид не указан"
+        if birth:
+            second += f"  ·  род. {fmt_display(birth)}"
+        col.add_widget(MDLabel(
+            text=second,
+            theme_text_color="Custom",
+            text_color=T.TEXT_SUB,
+            size_hint_y=None,
+            height=dp(22),
+        ))
+        age = format_age(birth)
+        third = breed if breed else "порода не указана"
+        if age:
+            third += f"  ·  {age}"
+        col.add_widget(MDLabel(
+            text=third,
+            theme_text_color="Custom",
+            text_color=T.TEXT_SUB,
+            size_hint_y=None,
+            height=dp(22),
+        ))
+        card.add_widget(col)
         return card
-
-    def open_pet_detail(self, pet_id, *args):
-        """Открыть детальную карточку питомца с назначенным лечением."""
-        app = App.get_running_app()
-        pet_detail = app.root.ids.screen_manager.get_screen("pet_detail")
-        pet_detail.current_pet_id = pet_id
-        app.root.ids.screen_manager.current = "pet_detail"
-
-    def open_create_form(self, *args):
-        """FAB: открыть форму в режиме СОЗДАНИЯ.
-
-        Сначала ПОЛНОСТЬЮ очищаем форму, и только потом переключаем экран.
-        Иначе после отменённой правки в форме остаётся живой
-        editing_pet_id, и «новый» питомец перезапишет чужую карточку.
-        """
-        app = App.get_running_app()
-        pet_form = app.root.ids.screen_manager.get_screen("pet_form")
-        pet_form.reset_form()
-        app.root.ids.screen_manager.current = "pet_form"
-
-    def open_edit(self, pet_id, *args):
-        """Открыть форму редактирования с данными питомца."""
-        app = App.get_running_app()
-        pet_form = app.root.ids.screen_manager.get_screen("pet_form")
-        pet = app.db.get_pet_by_id(pet_id)
-        if pet:
-            pet_form.load_pet_data(pet)
-        app.root.ids.screen_manager.current = "pet_form"
-
-    def confirm_delete(self, pet_id, pet_name, *args):
-        """Диалог подтверждения удаления."""
-        def do_delete(*_args):
-            dialog.dismiss()
-            app = App.get_running_app()
-            app.db.delete_pet(pet_id)
-            self.refresh_cards()
-            app.show_toast("Питомец удалён")
-
-        dialog = MDDialog(
-            MDDialogHeadlineText(text="Удалить питомца?"),
-            MDDialogSupportingText(
-                text=f"Вы уверены, что хотите удалить «{pet_name}»? "
-                     f"Это действие нельзя отменить."
-            ),
-            MDDialogButtonContainer(
-                MDButton(
-                    MDButtonText(text="Отмена"),
-                    on_release=lambda *_: dialog.dismiss(),
-                ),
-                MDButton(
-                    MDButtonText(text="Удалить"),
-                    on_release=do_delete,
-                    theme_bg_color="Custom",
-                    md_bg_color=DANGER,
-                ),
-                spacing=dp(8),
-            ),
-        )
-        dialog.open()

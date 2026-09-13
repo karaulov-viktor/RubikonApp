@@ -1,2 +1,16 @@
+# RubikonApp — зависимости
+# Установка: pip install -r requirements.txt
+# (для Windows ставьте в тот же python, что запускает приложение:
+#  D:\PYTHON\python.exe -m pip install -r requirements.txt)
+
 kivy==2.3.1
 kivymd==2.0.0
+
+# Видео в приложении (галерея видео питомца)
+ffpyplayer
+
+# Системные уведомления при закрытом приложении (Windows)
+winotify
+
+# Работа с изображениями
+pillow

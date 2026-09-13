@@ -1,239 +1,155 @@
-"""
-Спринт 1.5 — Анкета питомца с историей назначений
-"""
+# -*- coding: utf-8 -*-
+"""Анкета питомца: добавление и редактирование.
 
-import os
-import shutil
-from datetime import datetime
-from functools import partial
-from tkinter import Tk, filedialog
+Ключевое изменение против старого проекта: вместо поля «возраст» —
+ДАТА РОЖДЕНИЯ (3 спиннера: день / месяц / год). Возраст вычисляется
+на лету (models/age_utils), день рождения триггерит уведомление.
 
-from kivy.app import App
-from kivy.clock import Clock
-from kivy.metrics import dp
-from kivymd.uix.menu import MDDropdownMenu
+Мод:  start_add()  — новый питомец
+      start_edit(pet_id) — правка существующего
+"""
+import calendar as _cal
+import datetime as _dt
+
 from kivymd.uix.screen import MDScreen
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from models import database as db
+from models import image_utils
+from screens import AppMixin
 
-SPECIES = ["Собака", "Кошка", "Птица"]
-BREEDS = {
-    "Собака": ["Дворняга", "Лабрадор", "Немецкая овчарка", "Пудель", "Хаски"],
-    "Кошка": ["Британская", "Мейн-кун", "Сиамская", "Сфинкс", "Дворовая"],
-    "Птица": ["Волнистый попугай", "Канарейка", "Корелла"],
-}
-SIZES = ["Мелкий", "Средний", "Крупный"]
+SPECIES = ["Кошка", "Собака", "Птица", "КРС", "Свинья", "МРС", "Лошадь"]
 
 
-class PetFormScreen(MDScreen):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.photo_path = ""
-        self.species = ""
-        self.breed = ""
-        self.pet_size = ""
-        self.editing_pet_id = None
+class PetFormScreen(AppMixin, MDScreen):
 
-    # ---------- выпадающие списки ----------
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.mode = "add"
+        self.pet_id = None
+        self._picked_src = None  # абсолютный путь выбранного фото
 
-    def _close_menu(self):
-        menu = getattr(self, "_menu", None)
-        if menu is not None:
-            menu.dismiss()
-        self._menu = None
+    # ---------------------------------------------------------- открытие
+    def start_add(self):
+        self.mode = "add"
+        self.pet_id = None
+        self._picked_src = None
+        self.ids.f_name.text = ""
+        self.ids.f_breed.text = ""
+        self._fill_date_spinners(None)
+        self._reset_photo_preview()
+        self.ids.btn_save.text = "Сохранить"
+        self.ids.form_title.text = "Новый питомец"
 
-    def _open_menu(self, caller, values, on_pick):
-        self._close_menu()
-        menu_items = [
-            {"text": value, "on_release": partial(on_pick, value)}
-            for value in values
-        ]
-        self._menu = MDDropdownMenu(
-            caller=caller,
-            items=menu_items,
-            width=dp(280),
-            position="auto",
-        )
-        self._menu.open()
-        caller.focus = False
-
-    def open_species_menu(self, field, focused):
-        if not focused:
+    def start_edit(self, pet_id: int):
+        pet = db.get_pet(pet_id)
+        if not pet:
             return
-        self._open_menu(field, SPECIES, self.select_species)
-
-    def select_species(self, species):
-        self._close_menu()
-        self.species = species
-        self.ids.field_species.text = species
-        self.breed = ""
-        self.ids.field_breed.text = ""
-
-    def open_breed_menu(self, field, focused):
-        if not focused:
-            return
-        breeds = BREEDS.get(self.species, [])
-        if not breeds:
-            return
-        self._open_menu(field, breeds, self.select_breed)
-
-    def select_breed(self, breed):
-        self._close_menu()
-        self.breed = breed
-        self.ids.field_breed.text = breed
-
-    def open_size_menu(self, field, focused):
-        if not focused:
-            return
-        self._open_menu(field, SIZES, self.select_size)
-
-    def select_size(self, size):
-        self._close_menu()
-        self.pet_size = size
-        self.ids.field_size.text = size
-
-    # ---------- фото ----------
-
-    def choose_photo(self):
-        root = Tk()
-        root.withdraw()
-        path = filedialog.askopenfilename(
-            title="Фото питомца",
-            filetypes=[("Картинки", "*.png *.jpg *.jpeg *.bmp *.webp")],
-        )
-        root.destroy()
-        if not path:
-            return
-        self.photo_path = self._make_copy(path)
-        self.ids.label_photo.text = os.path.basename(self.photo_path)
-
-    def _make_copy(self, src):
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        ext = os.path.splitext(src)[1].lower()
-        os.makedirs(os.path.join(BASE_DIR, "media", "pets"), exist_ok=True)
-        rel_path = os.path.join("media", "pets", f"pet-{stamp}{ext}")
-        shutil.copyfile(src, os.path.join(BASE_DIR, rel_path))
-        return rel_path
-
-    # ---------- загрузка данных для редактирования ----------
-
-    def load_pet_data(self, pet):
-        """Заполнить форму данными питомца для редактирования."""
-        pet_id, name, species, breed, size, age, weight, history, photo = pet
-        self.editing_pet_id = pet_id
-        self.ids.field_name.text = name or ""
-        self.ids.field_species.text = species or ""
-        self.ids.field_breed.text = breed or ""
-        self.ids.field_size.text = size or ""
-        # ⚠ НЕ "str(age) if age else ''": 0 — falsy, и возраст
-        # новорождённого показался бы пустым полем. Проверяем только None.
-        self.ids.field_age.text = "" if age is None else str(age)
-        self.ids.field_weight.text = "" if weight is None else str(weight)
-        self.ids.field_history.text = history or ""
-        self.species = species or ""
-        self.breed = breed or ""
-        self.pet_size = size or ""
-        self.photo_path = photo or ""
-        if photo:
-            self.ids.label_photo.text = os.path.basename(photo)
-        else:
-            self.ids.label_photo.text = "Фото не выбрано"
-        # Режим редактирования: переключаем шапку и кнопку (id из kv)
-        self.ids.label_title.text = "Изменение карточки"
-        self.ids.btn_save_text.text = "Сохранить изменения"
-
-    # ---------- сохранение ----------
-
-    def save_pet(self):
-        name = self.ids.field_name.text.strip()
-        age = self.ids.field_age.text
-        weight = self.ids.field_weight.text
-        history = self.ids.field_history.text
-
-        # ═══ ВАЛИДАЦИЯ: кличка обязательна ═══
-        # NOT NULL в SQLite пропускает пустую строку "" —
-        # база не спасёт, проверяем сами, ДО записи.
-        # strip() отрезает пробелы, чтобы "   " тоже не прошло.
-        if not name:
-            App.get_running_app().show_toast("Введите кличку питомца")
-            return  # выходим: ничего не сохраняем и никуда не уходим
-
-        db = App.get_running_app().db
-
-        if self.editing_pet_id:
-            db.update_pet(
-                self.editing_pet_id,
-                name, self.species, self.breed, self.pet_size,
-                age, weight, history, self.photo_path,
-            )
-            message = f"Питомец «{name}» обновлён"
-        else:
-            db.add_pet(
-                name, self.species, self.breed, self.pet_size,
-                age, weight, history, self.photo_path,
-            )
-            message = f"Питомец «{name}» добавлен"
-
-        print(f"Сохранено: {message}")
-
-        # ═══ ПОЛНАЯ ОЧИСТКА ВСЕХ ПОЛЕЙ ═══
-        self._reset_all_fields()
-
-        self.manager.current = "profile"
-        Clock.schedule_once(
-            lambda dt: App.get_running_app().show_toast(message),
-            0.3,
-        )
-
-    def reset_form(self):
-        """Публичная точка входа для чужих экранов (profile.open_create_form).
-
-        Имена с подчёркиванием — «внутренние», наружу выставляем
-        публичный метод без подчёркивания.
-        """
-        self._reset_all_fields()
-
-    def _reset_all_fields(self):
-        """Полная очистка всех полей формы после сохранения."""
-        # Очищаем все текстовые поля
-        for field_id in (
-                "field_name", "field_species", "field_breed",
-                "field_size", "field_age", "field_weight", "field_history",
-        ):
+        self.mode = "edit"
+        self.pet_id = pet_id
+        self._picked_src = None
+        self.ids.f_name.text = pet["name"]
+        self.ids.f_breed.text = pet["breed"] or ""
+        birth = pet["birth_date"] or ""
+        if birth:
             try:
-                self.ids[field_id].text = ""
-            except KeyError:
-                pass  # поле может отсутствовать
+                d = _dt.datetime.strptime(birth, "%Y-%m-%d").date()
+            except ValueError:
+                d = None
+        else:
+            d = None
+        self._fill_date_spinners(d)
+        self.ids.f_species.text = pet.get("species") or SPECIES[0]
+        self._reset_photo_preview()
+        self.ids.btn_save.text = "Сохранить изменения"
+        self.ids.form_title.text = "Редактирование"
 
-        # Сбрасываем внутренние переменные
-        self.species = ""
-        self.breed = ""
-        self.pet_size = ""
-        self.photo_path = ""
-        self.editing_pet_id = None
+    def _fill_date_spinners(self, d):
+        today = _dt.date.today()
+        d = d or today
+        years = list(range(2000, today.year + 1))[::-1]
+        self.ids.sp_day.values = [str(i) for i in range(1, 32)]
+        self.ids.sp_month.values = [str(i) for i in range(1, 13)]
+        self.ids.sp_year.values = [str(y) for y in years]
+        self.ids.sp_day.text = str(d.day)
+        self.ids.sp_month.text = str(d.month)
+        self.ids.sp_year.text = str(d.year)
 
-        # Сбрасываем метку фото
-        try:
-            self.ids.label_photo.text = "Фото не выбрано"
-        except KeyError:
-            pass
+    def _reset_photo_preview(self):
+        self._picked_src = None
+        self.ids.photo_hint.text = "Фото не выбрано"
 
-        # Сбрасываем шапку и кнопку в режим «создание»
-        try:
-            self.ids.label_title.text = "Анкета питомца"
-            self.ids.btn_save_text.text = "Сохранить"
-        except KeyError:
-            pass
+    # ---------------------------------------------------------- действия
+    def choose_photo(self):
+        src = image_utils.pick_media_src("photo")
+        if src:
+            self._picked_src = src
+            self.ids.photo_hint.text = (
+                "Фото выбрано: " + src.replace("\\", "/").split("/")[-1]
+            )
 
-        print("Все поля формы очищены")
+    def save(self):
+        name = self.ids.f_name.text.strip()
+        if not name:
+            self.app.show_toast("Введите кличку питомца")
+            return
 
-    # ---------- навигация ----------
+        birth = self._collect_birth_date()  # '' если год не выбран
+        if birth == "INVALID":
+            return  # тост уже показан
 
-    def go_back(self, *args):
-        """Вернуться в профиль, сбросив режим редактирования.
+        species = self.ids.f_species.text or SPECIES[0]
+        breed = self.ids.f_breed.text.strip()
 
-        Отмена = всё стереть. Оставшийся editing_pet_id здесь —
-        та самая мина: «отменил правку → FAB → обновил чужую карточку».
+        if self.mode == "add":
+            pet_id = db.add_pet(name, species, breed, birth)
+            photo_rel = self._copy_photo(pet_id)
+            if photo_rel:
+                db.update_pet(pet_id, name, species, breed, birth, photo_rel)
+            self.app.show_toast(f"{name} добавлен")
+        else:
+            photo_rel = self._copy_photo(self.pet_id)
+            db.update_pet(
+                self.pet_id, name, species, breed, birth,
+                photo_rel if photo_rel else None,  # None = фото не менять
+            )
+            self.app.show_toast("Изменения сохранены")
+
+        self.app.go_to("profile")
+
+    def _copy_photo(self, pet_id: int) -> str | None:
+        if not self._picked_src:
+            return None
+        rel = image_utils.copy_media_to(self._picked_src, pet_id)
+        if rel is None:
+            self.app.show_toast("Не удалось скопировать фото")
+        return rel
+
+    def _collect_birth_date(self) -> str:
+        """Собирает YYYY-MM-DD из трёх спиннеров.
+
+        ''  — дата не указана (год пуст)
+        'INVALID' — дата не существует (31.02) или в будущем
         """
-        self._reset_all_fields()
-        self.manager.current = "profile"
+        year_s = self.ids.sp_year.text.strip()
+        if not year_s:
+            return ""
+        try:
+            day = int(self.ids.sp_day.text)
+            month = int(self.ids.sp_month.text)
+            year = int(year_s)
+            d = _dt.date(year, month, day)  # ValueError для 31.02
+        except ValueError:
+            self.app.show_toast("Такой даты не существует")
+            return "INVALID"
+        if d > _dt.date.today():
+            self.app.show_toast("Дата рождения не может быть в будущем")
+            return "INVALID"
+        return d.strftime("%Y-%m-%d")
+
+    def cancel(self):
+        self.app.go_to("profile")
+
+    # утилита для будущих правок вёрстки: максимум дней в месяце
+    @staticmethod
+    def _max_day(year: int, month: int) -> int:
+        return _cal.monthrange(year, month)[1]

@@ -1,6 +1,26 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+
+# Виртуальное окружение (НИКОГДА не коммитим!)
 venv/
+.venv/
+
+# Данные пользователя (БД, бэкапы, медиа, состояние нотификатора)
+data/
 backup/
-.idea/
 media/
+notifier_state.json
+
+# IDE
+.idea/
+.vscode/
+
+# Сборка
+*.zip
+dist/
+build/
+
+# Логи
+*.log

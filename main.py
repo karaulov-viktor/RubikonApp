@@ -1,17 +1,24 @@
-"""
-Спринт 1 — Точка входа с фирменным стилем «Рубикон Агент»
-ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ ДЛЯ KIVYMD 2.0.0
+# -*- coding: utf-8 -*-
+"""RubikonApp — точка входа.
 
-Что изменилось:
-  - Тема: Teal → Green (фирменный зелёный #2E7D32)
-  - Splash: 5 секунд → 2.5 секунды + плавный переход
-  - Исправлен баг с FBO при snackbar
-  - Добавлен метод show_toast — безопасное уведомление без FBO
-"""
+Спринт «Питомцы» (3) НА БАЗЕ полного функционала спринтов 1-2.6:
+каталог 61 препарат, карточка препарата, лечение, календарь,
+калькулятор доз, история назначений — всё сохранено.
 
+Что добавил спринт 3:
+  - дисклеймер первого запуска (юртексты, models/legal.py)
+  - карточки питомцев нового дизайна + личная страница
+    (галереи фото/видео, диета, вес, лекарства, кормление)
+  - дата рождения вместо возраста + поздравление
+  - напоминания при ЗАКРЫТОМ приложении (Планировщик Windows)
+  - подсветка активного пункта нижнего меню
+
+ВАЖНО (урок FactoryException): классы экранов импортируются здесь
+только ради регистрации в Factory — kv ссылается на них по имени.
+"""
 import os
-import shutil
-from datetime import datetime
+import subprocess
+import sys
 
 from kivy.config import Config
 
@@ -19,149 +26,322 @@ Config.set("graphics", "width", "360")
 Config.set("graphics", "height", "680")
 Config.set("graphics", "resizable", "0")
 
+from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.core.window import Window
+from kivy.graphics import Color, RoundedRectangle
 from kivy.lang import Builder
+from kivy.metrics import dp
+from kivy.uix.label import Label
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 
+from models import database as db
 from models.database import Database
+from models import theme as T
+from models.legal import LEGAL_TEXT
+from models.notifier import scan as scan_notifications
+
+# --- регистрация экранов в Factory (НЕ УДАЛЯТЬ импорты!) ---
+from screens.appointment_detail import AppointmentDetailScreen
 from screens.calculator import CalculatorScreen
 from screens.calendar import CalendarScreen
 from screens.catalog import CatalogScreen
+from screens.disclaimer import DisclaimerScreen
 from screens.drug_detail import DrugDetailScreen
-from screens.pet_form import PetFormScreen
-from screens.profile import ProfileScreen
 from screens.pet_detail import PetDetailScreen
-from screens.appointment_detail import AppointmentDetailScreen
+from screens.pet_form import PetFormScreen
+from screens.pet_treatment import PetTreatmentScreen
+from screens.profile import ProfileScreen
 
+# скины элементов меню — для подсветки активного экрана
+from kivymd.uix.navigationbar.navigationbar import (
+    MDNavigationItem,
+    MDNavigationItemLabel,
+)
 
-def backup_database(keep=5):
-    """Снимок базы при каждом старте."""
-    src = "data/rubikon.db"
-    if not os.path.exists(src):
-        print("Бэкап пропущен: data/rubikon.db не найден")
-        return
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    dst = os.path.join("backup", f"rubikon.db.bak-{stamp}")
-    os.makedirs("backup", exist_ok=True)
-    shutil.copyfile(src, dst)
-    print(f"Бэкап создан: {dst}")
-    baks = sorted(os.listdir("backup"))
-    while len(baks) > keep:
-        os.remove(os.path.join("backup", baks.pop(0)))
+TASK_NAME = "RubikonAppReminder"
+
+# экран -> подпись пункта меню; подэкраны наследуют раздел
+NAV_LABELS = {
+    "catalog": "Каталог",
+    "profile": "Профиль",
+    "calculator": "Калькулятор",
+    "calendar": "Календарь",
+}
+SUB_NAV_LABELS = {
+    "drug_detail": "Каталог",
+    "pet_detail": "Профиль",      # личная страница питомца
+    "pet_form": "Профиль",
+    "pet_treatment": "Профиль",   # лечение и назначения
+    "appointment_detail": "Профиль",
+}
+
+KV_FILES = (
+    "kv/splash.kv",
+    "kv/catalog.kv",
+    "kv/drug_detail.kv",
+    "kv/profile.kv",
+    "kv/pet_form.kv",
+    "kv/pet_detail.kv",
+    "kv/pet_treatment.kv",
+    "kv/appointment_detail.kv",
+    "kv/disclaimer.kv",
+    "kv/calculator.kv",
+    "kv/calendar.kv",
+)
 
 
 class SplashScreen(MDScreen):
-    pass
+    """Заставка: зелёный логотип, 2.5 секунды (описан в kv/splash.kv)."""
+
+
+class ToastLabel(Label):
+    """Самодельный тост поверх окна (без MDSnackbar — обход FBO-бага)."""
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        green = T.GREEN_DARK
+        with self.canvas.before:
+            Color(green[0], green[1], green[2], 0.97)
+            self._rect = RoundedRectangle(radius=[dp(22)])
+        self.bind(size=self._update_rect, pos=self._update_rect)
+
+    def _update_rect(self, *args):
+        self._rect.pos = self.pos
+        self._rect.size = self.size
 
 
 class RubikonApp(MDApp):
+
+    # ============================================================= build
     def build(self):
-        # ═══════════════════════════════════════════════════════
-        # ФИРМЕННЫЙ СТИЛЬ «РУБИКОН АГЕНТ»
-        # ═══════════════════════════════════════════════════════
-        self.theme_cls.theme_style = "Light"
-        self.theme_cls.primary_palette = "Green"  # было Teal
-        self.theme_cls.primary_hue = "700"  # насыщенный зелёный
+        self.theme_cls.theme_style = "Light"       # белая база
+        self.theme_cls.primary_palette = "Green"   # фирменный зелёный
+        self.theme_cls.primary_hue = "800"         # тёмный, ближе к #177300
 
-        # Белый фон под всеми экранами
-        Window.clearcolor = (1, 1, 1, 1)
+        Window.clearcolor = T.BG
 
+        # --- БД: инициализация + миграция + бэкап при каждом старте ---
+        db.init_db()
         try:
-            backup_database()
-        except OSError as e:
-            print(f"Бэкап не удался: {e}")
+            db.backup_db()
+        except Exception:
+            pass
 
+        # Старый интерфейс БД (каталог/лечение/календарь): app.db
         self.db = Database()
 
-        # Загрузка KV-файлов
-        Builder.load_file("kv/splash.kv")
-        Builder.load_file("kv/catalog.kv")
-        Builder.load_file("kv/drug_detail.kv")
-        Builder.load_file("kv/profile.kv")
-        Builder.load_file("kv/calculator.kv")
-        Builder.load_file("kv/calendar.kv")
-        Builder.load_file("kv/pet_form.kv")
-        Builder.load_file("kv/pet_detail.kv")
-        Builder.load_file("kv/appointment_detail.kv")
+        for f in KV_FILES:
+            Builder.load_file(f)
 
         self.root = Builder.load_file("kv/root.kv")
 
-        # Фикс WeakProxy для навбара
-        nav_bar = self.root.ids.nav_bar
-        if hasattr(nav_bar, "__ref__"):
-            nav_bar = nav_bar.__ref__()
-        self.nav_bar = nav_bar
+        # юридический текст на экран согласия
+        self.root.ids.screen_manager.get_screen(
+            "disclaimer").ids.legal_text.text = LEGAL_TEXT
+
+        # меню на заставке не нужно
+        self.nav_bar = self.root.ids.nav_bar
         self.root.remove_widget(self.nav_bar)
 
-        # Splash: 2.5 секунды вместо 5
-        Clock.schedule_once(self.go_to_catalog, 5)
+        Clock.schedule_once(self._after_splash, 2.5)
+        # проверка напоминаний каждые 30 секунд, пока приложение запущено
+        Clock.schedule_interval(self._check_notifications, 30)
 
         return self.root
 
-    def go_to_catalog(self, dt):
-        self.root.ids.screen_manager.current = "catalog"
-        self.root.add_widget(self.nav_bar)
+    def _after_splash(self, dt):
+        """Заставка -> дисклеймер (первый запуск) или каталог."""
+        if db.get_setting("disclaimer_accepted") == "1":
+            self.go_to("catalog")
+        else:
+            self.go_to("disclaimer")
 
-    def open_drug_detail(self, drug_id):
-        """Открыть детальную карточку препарата."""
-        self.selected_drug_id = drug_id
-        self.root.ids.screen_manager.current = "drug_detail"
+    # ====================================================== навигация
+    def go_to(self, screen_name: str):
+        """Единая точка переходов: экран + подсветка нижнего меню."""
+        self.root.ids.screen_manager.current = screen_name
+        if screen_name in ("splash", "disclaimer"):
+            # заставка и согласие идут без нижнего меню
+            if self.nav_bar.parent is not None:
+                self.root.remove_widget(self.nav_bar)
+        elif self.nav_bar.parent is None:
+            self.root.add_widget(self.nav_bar)
+        self._sync_nav(screen_name)
 
     def on_switch_tabs(self, bar, item, item_icon, item_text):
+        """Тап по нижнему меню."""
         screen_map = {
             "Каталог": "catalog",
             "Профиль": "profile",
             "Калькулятор": "calculator",
             "Календарь": "calendar",
         }
-        target = screen_map.get(item_text, "catalog")
-        self.root.ids.screen_manager.current = target
+        self.go_to(screen_map.get(item_text, "catalog"))
 
-    # ═══════════════════════════════════════════════════════
-    # БЕЗОПАСНЫЙ TOAST (вместо snackbar, который падает с FBO)
-    # ═══════════════════════════════════════════════════════
-    def show_toast(self, message, duration=2.5):
-        """
-        Показать уведомление внизу экрана.
-        Не использует MDSnackbar (тот падает с FBO при переходе между экранами).
-        Вместо этого — простой MDCard с анимацией.
-        """
-        from kivy.metrics import dp
-        from kivy.animation import Animation
-        from kivymd.uix.card import MDCard
-        from kivymd.uix.label import MDLabel
-
-        # Получаем текущий экран
-        current_screen = self.root.ids.screen_manager.current_screen
-
-        toast = MDCard(
-            size_hint=(0.92, None),
-            height=dp(48),
-            radius=[dp(12)],
-            md_bg_color=(0.09, 0.45, 0.0, 0.95),  # фирменный зелёный
-            pos_hint={"center_x": 0.5, "y": 0.08},
-            opacity=0,
-        )
-        toast.add_widget(
-            MDLabel(
-                text=message,
-                theme_text_color="Custom",
-                text_color=(1, 1, 1, 1),
-                halign="center",
-                font_style="Body",
-                font_size="14sp",
+    def _sync_nav(self, screen_name: str):
+        """Подсветка пункта меню: точное совпадение или раздел-родитель."""
+        want = NAV_LABELS.get(screen_name) or SUB_NAV_LABELS.get(screen_name)
+        for item in self.nav_bar.children:
+            if not isinstance(item, MDNavigationItem):
+                continue
+            item.active = (
+                want is not None and self._nav_label(item) == want
             )
-        )
-        current_screen.add_widget(toast)
 
-        # Анимация: появление → пауза → исчезновение → удаление
-        anim_in = Animation(opacity=1, duration=0.25)
-        anim_out = Animation(opacity=0, duration=0.25)
-        anim_out.bind(on_complete=lambda *_: current_screen.remove_widget(toast))
-        anim_in.start(toast)
-        Clock.schedule_once(lambda dt: anim_out.start(toast), duration)
+    @staticmethod
+    def _nav_label(item) -> str:
+        """Достаёт текст подписи пункта меню (она вложена в контейнеры)."""
+        for child in item.children:
+            for grandchild in child.children:
+                if isinstance(grandchild, MDNavigationItemLabel):
+                    return grandchild.text
+        return ""
+
+    # ====================================== мосты kv->py (старый код)
+    def open_drug_detail(self, drug_id):
+        """Открыть детальную карточку препарата."""
+        self.selected_drug_id = drug_id
+        self.go_to("drug_detail")
+
+    # ====================================== мосты экранов питомцев
+    def add_pet(self):
+        self.root.ids.screen_manager.get_screen("pet_form").start_add()
+        self.go_to("pet_form")
+
+    def open_pet(self, pet_id: int):
+        self.root.ids.screen_manager.get_screen("pet_detail").open_pet(
+            pet_id)
+
+    def edit_pet(self, pet_id: int):
+        self.root.ids.screen_manager.get_screen("pet_form").start_edit(
+            pet_id)
+        self.go_to("pet_form")
+
+    def open_treatment(self, pet_id: int):
+        """Лечение и назначения (экран спринтов 1-2.6)."""
+        screen = self.root.ids.screen_manager.get_screen("pet_treatment")
+        screen.current_pet_id = pet_id
+        self.go_to("pet_treatment")
+
+    # ======================================================= дисклеймер
+    def accept_disclaimer(self):
+        db.set_setting("disclaimer_accepted", "1")
+        self.go_to("catalog")
+
+    def decline_disclaimer(self):
+        self.show_toast(
+            "Для работы приложения нужно принять условия использования")
+
+    # ==================================================== уведомления
+    def _check_notifications(self, dt):
+        """В-приложении: тосты по расписанию (кормление, лекарства,
+        день рождения, конец диеты). Дедупликация — общий state-файл
+        с системным нотификатором."""
+        try:
+            for ev in scan_notifications():
+                self.show_toast(ev["text"], duration=5)
+        except Exception:
+            pass
+
+    def is_system_notifications_enabled(self) -> bool:
+        if sys.platform != "win32":
+            return False
+        try:
+            r = subprocess.run(
+                ["schtasks", "/Query", "/TN", TASK_NAME],
+                capture_output=True,
+            )
+            return r.returncode == 0
+        except Exception:
+            return False
+
+    def toggle_system_notifications(self):
+        """Вкл/выкл напоминаний ПРИ ЗАКРЫТОМ приложении: задача
+        Планировщика Windows каждые 15 минут запускает notifier.py."""
+        if sys.platform != "win32":
+            self.show_toast("Доступно только на Windows")
+            return
+        if self.is_system_notifications_enabled():
+            subprocess.run(
+                ["schtasks", "/Delete", "/TN", TASK_NAME, "/F"],
+                capture_output=True,
+            )
+            self.show_toast("Системные напоминания выключены")
+        else:
+            pythonw = os.path.join(
+                os.path.dirname(sys.executable), "pythonw.exe")
+            if not os.path.exists(pythonw):
+                pythonw = sys.executable  # fallback: будет мигать консоль
+            notifier_py = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "notifier.py")
+            subprocess.run(
+                ["schtasks", "/Create", "/SC", "MINUTE", "/MO", "15",
+                 "/TN", TASK_NAME, "/F",
+                 "/TR", f'"{pythonw}" "{notifier_py}"'],
+                capture_output=True,
+            )
+            if self.is_system_notifications_enabled():
+                self.show_toast(
+                    "Готово! Напоминания будут приходить даже при закрытом "
+                    "приложении")
+            else:
+                self.show_toast(
+                    "Не удалось создать задачу планировщика — запустите "
+                    "приложение от имени администратора")
+        try:
+            self.root.ids.screen_manager.get_screen(
+                "profile").refresh_pets()
+        except Exception:
+            pass
+
+    # ============================================================= тост
+    def show_toast(self, message, duration=2.5):
+        """Безопасный тост (старый, проверенный на GT 710: без FBO).
+
+        Крепится к текущему экрану, а не к Window: на слабых
+        видеокартах виджеты поверх ScreenManager падали с FBO 36054.
+        """
+        try:
+            from kivy.animation import Animation as _A
+            from kivymd.uix.card import MDCard
+            from kivymd.uix.label import MDLabel
+
+            current_screen = self.root.ids.screen_manager.current_screen
+            if current_screen is None:
+                return
+
+            toast = MDCard(
+                size_hint=(0.92, None),
+                height=dp(48),
+                radius=[dp(12)],
+                md_bg_color=T.GREEN_DARK,
+                pos_hint={"center_x": 0.5, "y": 0.08},
+                opacity=0,
+            )
+            toast.add_widget(
+                MDLabel(
+                    text=message,
+                    theme_text_color="Custom",
+                    text_color=(1, 1, 1, 1),
+                    halign="center",
+                    font_style="Body",
+                    font_size="14sp",
+                )
+            )
+            current_screen.add_widget(toast)
+
+            anim_in = _A(opacity=1, duration=0.25)
+            anim_out = _A(opacity=0, duration=0.25)
+            anim_out.bind(
+                on_complete=lambda *_: current_screen.remove_widget(toast))
+            anim_in.start(toast)
+            Clock.schedule_once(
+                lambda dt: anim_out.start(toast), duration)
+        except Exception:
+            # тост не критичен — не даём ему ронять приложение
+            print(f"[toast] {message}")
 
 
 if __name__ == "__main__":

@@ -1,164 +1,162 @@
-# PetFormScreen — редизайн «PetsHealth»:
-# светлый фон, тёмная шапка, бирюзовая кнопка сохранения.
-
-#:import C models.theme
+#:import T models.theme
 
 <PetFormScreen>:
-    name: "pet_form"
+    md_bg_color: T.BG
 
     MDBoxLayout:
         orientation: "vertical"
-        md_bg_color: C.BG
 
-        # ===== ШАПКА: стрелка назад + заголовок =====
-        MDBoxLayout:
-            orientation: "horizontal"
-            adaptive_height: True
-            padding: dp(8), dp(6)
-            md_bg_color: C.BG
-
-            MDIconButton:
-                icon: "arrow-left"
-                icon_color: C.TEXT_MAIN
-                on_release: root.go_back()
-
-            MDLabel:
-                id: label_title
-                text: "Анкета питомца"
-                font_style: "Title"
-                adaptive_height: True
-                theme_text_color: "Custom"
-                text_color: C.TEXT_MAIN
-                pos_hint: {"center_y": 0.5}
-
-        # ===== КОНТЕНТ ФОРМЫ =====
-        MDScrollView:
+        ScrollView:
             do_scroll_x: False
 
             MDBoxLayout:
                 orientation: "vertical"
                 adaptive_height: True
-                padding: dp(20), dp(30), dp(20), dp(30)
-                spacing: dp(24)
+                padding: [dp(16), dp(16), dp(16), dp(24)]
+                spacing: dp(10)
 
-                # --- Кличка ---
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "48dp"
+
+                    MDIconButton:
+                        icon: "arrow-left"
+                        theme_icon_color: "Custom"
+                        icon_color: T.GREEN
+                        on_release: root.cancel()
+
+                    MDLabel:
+                        id: form_title
+                        text: "Новый питомец"
+                        font_style: "Headline"
+                        role: "small"
+                        bold: True
+                        theme_text_color: "Custom"
+                        text_color: T.GREEN
+                        valign: "middle"
+
+                # --- Имя ---
                 MDTextField:
-                    id: field_name
-                    mode: "outlined"
-
+                    id: f_name
+                    mode: "filled"
+                    size_hint_y: None
+                    height: "56dp"
                     MDTextFieldHintText:
-                        text: "Кличка питомца"
+                        text: "Кличка питомца *"
 
-                    MDTextFieldMaxLengthText:
-                        max_text_length: 20
+                # --- Вид ---
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "52dp"
+                    spacing: dp(10)
 
-                # --- Вид (выпадающий список) ---
-                MDTextField:
-                    id: field_species
-                    mode: "outlined"
-                    readonly: True
-                    on_focus: root.open_species_menu(self, args[1])
-
-                    MDTextFieldHintText:
+                    MDLabel:
                         text: "Вид"
+                        theme_text_color: "Custom"
+                        text_color: T.TEXT_SUB
+                        valign: "middle"
+                        size_hint_x: 0.25
 
-                    MDTextFieldTrailingIcon:
-                        icon: "chevron-down"
+                    Spinner:
+                        id: f_species
+                        text: "Кошка"
+                        values: ["Кошка", "Собака", "Птица", "КРС", "Свинья", "МРС", "Лошадь"]
+                        size_hint_x: 0.75
+                        background_normal: ""
+                        background_down: ""
+                        background_color: T.GREEN_SOFT
+                        color: T.GREEN
+                        bold: True
 
-                # --- Порода (выпадающий список) ---
+                # --- Дата рождения: день / месяц / год ---
+                MDLabel:
+                    text: "Дата рождения (вместо возраста — возраст посчитаем сами)"
+                    theme_text_color: "Custom"
+                    text_color: T.TEXT_SUB
+                    size_hint_y: None
+                    height: "24dp"
+
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: "52dp"
+                    spacing: dp(10)
+
+                    Spinner:
+                        id: sp_day
+                        text: "1"
+                        values: []
+                        background_normal: ""
+                        background_down: ""
+                        background_color: T.GREEN_SOFT
+                        color: T.GREEN
+                        bold: True
+
+                    Spinner:
+                        id: sp_month
+                        text: "1"
+                        values: []
+                        background_normal: ""
+                        background_down: ""
+                        background_color: T.GREEN_SOFT
+                        color: T.GREEN
+                        bold: True
+
+                    Spinner:
+                        id: sp_year
+                        text: ""
+                        values: []
+                        background_normal: ""
+                        background_down: ""
+                        background_color: T.GREEN_SOFT
+                        color: T.GREEN
+                        bold: True
+
+                # --- Порода ---
                 MDTextField:
-                    id: field_breed
-                    mode: "outlined"
-                    readonly: True
-                    on_focus: root.open_breed_menu(self, args[1])
-
+                    id: f_breed
+                    mode: "filled"
+                    size_hint_y: None
+                    height: "56dp"
                     MDTextFieldHintText:
                         text: "Порода"
 
-                    MDTextFieldTrailingIcon:
-                        icon: "chevron-down"
-
-                # --- Размер (выпадающий список) ---
-                MDTextField:
-                    id: field_size
-                    mode: "outlined"
-                    readonly: True
-                    on_focus: root.open_size_menu(self, args[1])
-
-                    MDTextFieldHintText:
-                        text: "Размер"
-
-                    MDTextFieldTrailingIcon:
-                        icon: "chevron-down"
-
-                # --- Возраст ---
-                MDTextField:
-                    id: field_age
-                    mode: "outlined"
-                    input_type: "number"
-                    input_filter: "int"
-
-                    MDTextFieldHintText:
-                        text: "Возраст (лет)"
-
-                    MDTextFieldMaxLengthText:
-                        max_text_length: 3
-
-                # --- Вес ---
-                MDTextField:
-                    id: field_weight
-                    mode: "outlined"
-                    input_type: "number"
-                    input_filter: "float"
-
-                    MDTextFieldHintText:
-                        text: "Вес (кг)"
-
-                    MDTextFieldMaxLengthText:
-                        max_text_length: 6
-
-                # --- Дополнительные сведения ---
-                MDTextField:
-                    id: field_history
-                    mode: "outlined"
-
-                    MDTextFieldHintText:
-                        text: "Дополнительные сведения"
-
-                    MDTextFieldMaxLengthText:
-                        max_text_length: 200
-
-                # --- Кнопка выбора фото (мягкая бирюзовая) ---
-                MDButton:
-                    style: "tonal"
-                    size_hint_x: 1
-                    theme_bg_color: "Custom"
-                    md_bg_color: C.PRIMARY_SOFT
+                # --- Фото ---
+                MDCard:
+                    orientation: "horizontal"
+                    md_bg_color: T.GREEN_SOFT
+                    radius: [dp(12)]
+                    padding: dp(12)
+                    size_hint_y: None
+                    height: "52dp"
+                    spacing: dp(8)
                     on_release: root.choose_photo()
 
-                    MDButtonText:
-                        text: "Выбрать фото"
+                    MDLabel:
+                        id: photo_hint
+                        text: "Фото не выбрано"
                         theme_text_color: "Custom"
-                        text_color: C.PRIMARY_DARK
+                        text_color: T.GREEN
+                        valign: "middle"
 
-                # --- Статус фото ---
-                MDLabel:
-                    id: label_photo
-                    text: "Фото не выбрано"
-                    theme_text_color: "Secondary"
-                    adaptive_height: True
-                    halign: "center"
+                    MDIconButton:
+                        icon: "camera-outline"
+                        theme_icon_color: "Custom"
+                        icon_color: T.GREEN
 
-                # --- Кнопка "Сохранить" (в самом низу) ---
+                # --- Кнопки ---
                 MDButton:
+                    id: btn_save
                     style: "filled"
-                    size_hint_x: 1
-                    theme_bg_color: "Custom"
-                    md_bg_color: C.PRIMARY
-                    on_release: root.save_pet()
-
+                    size_hint_y: None
+                    height: "48dp"
+                    on_release: root.save()
                     MDButtonText:
-                        id: btn_save_text
                         text: "Сохранить"
-                        theme_text_color: "Custom"
-                        text_color: 1, 1, 1, 1
+
+                MDButton:
+                    style: "text"
+                    size_hint_y: None
+                    height: "40dp"
+                    on_release: root.cancel()
+                    MDButtonText:
+                        text: "Отмена"

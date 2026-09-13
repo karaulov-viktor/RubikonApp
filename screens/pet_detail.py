@@ -1,552 +1,553 @@
+# -*- coding: utf-8 -*-
+"""Личная страница питомца.
+
+Сверху вниз:
+  - аватар НА ВСЮ ШИРИНУ экрана (260dp) + кнопка назад
+  - карточка информации: имя / вид / порода · возраст · дата рождения
+  - Галерея фото (плитки 96dp, добавление, удаление)
+  - Галерея видео (инлайн-плеер как в Instagram, VideoPlayer+ffpyplayer)
+  - Лекарства (список + добавление)  -> уведомления по времени
+  - Кормление (расписание + добавление) -> уведомления по времени
+  - Диета (активная карточка с прогрессом ИЛИ форма создания;
+    в последний день — предложение взвесить питомца)
+  - Вес (Canvas-график динамики + список + запись замера)
+
+Все списки строятся кодом; kv держит каркас и заголовки секций.
 """
-Детальная карточка питомца — Спринт 2.6 (редизайн истории назначений)
+import datetime as _dt
 
-Что изменилось по сравнению со спринтом 2.5:
-  1. Центрирование теперь настоящее. В Kivy halign работает ТОЛЬКО
-     вместе с text_size, поэтому каждая надпись получает text_size
-     (см. _wrap_label).
-  2. Длинные названия переносятся по словам, карточки растут
-     по содержимому (см. _grow_with_content).
-  3. Тап по карточке открывает отдельный экран «Детали назначения»
-     (screens/appointment_detail.py) вместо MDDialog — диалог на
-     части видеокарт падает с FBO 36054, как и снекбар.
-  4. Все карточки создаются с НЕнулевой высотой: виджет с высотой 0
-     при рождении тоже роняет FBO на слабых видеокартах.
-"""
-
-import os
-from datetime import datetime, timedelta
-from functools import partial
-
-from kivy.app import App
 from kivy.metrics import dp
-from kivy.uix.image import Image
-from kivymd.uix.boxlayout import MDBoxLayout
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.videoplayer import VideoPlayer
+from kivy.uix.widget import Widget
+from kivy.graphics import Color, Ellipse, Line
+from kivymd.uix.button import MDButton, MDButtonText, MDIconButton
 from kivymd.uix.card import MDCard
-from kivymd.uix.label import MDIcon, MDLabel
-from kivymd.uix.menu import MDDropdownMenu
+from kivymd.uix.fitimage import FitImage
+from kivymd.uix.label import MDLabel
+from kivymd.uix.progressindicator import MDLinearProgressIndicator
 from kivymd.uix.screen import MDScreen
 
-from models.theme import (
-    CARD,
-    CARD_BORDER,
-    PRIMARY,
-    PRIMARY_DARK,
-    PRIMARY_SOFT,
-    TEXT_MAIN,
-    TEXT_SUB,
+from kivy.factory import Factory
+
+from models import database as db
+from models import theme as T
+from models.age_utils import fmt_display, format_age, parse_date
+from models.image_utils import (
+    copy_media_to,
+    delete_media_file,
+    pick_media_src,
+    resolve_media,
 )
+from models.legal import SHORT_DISCLAIMER
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from screens import AppMixin
+
+try:
+    import ffpyplayer  # noqa: F401
+    HAS_FFPY = True
+except Exception:
+    HAS_FFPY = False
 
 
-class PetDetailScreen(MDScreen):
+
+
+class WeightChart(Widget):
+    """Самодельный Canvas-график веса: линия + точки. Без библиотек."""
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.current_pet_id = None
-        self.current_pet_weight = 0
-        self.current_pet_name = ""
-        self.current_species = ""
-        self.selected_drug_id = None
-        self.selected_drug_name = ""
-        self._menu = None
-        self._history_expanded = False
+        self._weights = []
+        # при первом рендере width ещё 0 — перерисовка после лэйаута
+        self.bind(size=self._redraw)
 
-    # ═══════════════════════════════════════════════════════
-    # ПОМОЩНИКИ ВЁРСТКИ (мини-урок: halign без text_size молчит)
-    # ═══════════════════════════════════════════════════════
+    def _redraw(self, *args):
+        self.set_data(self._weights)
 
-    @staticmethod
-    def _wrap_label(text, **kwargs):
-        """
-        MDLabel: по центру, с переносом по словам и авто-высотой.
+    def set_data(self, weights: list):
+        self._weights = weights
+        self.canvas.clear()
+        if len(weights) < 2 or self.width < dp(50):
+            return
+        kgs = [w["kg"] for w in weights]
+        n = len(kgs)
+        kmin, kmax = min(kgs), max(kgs)
+        if kmax - kmin < 1e-9:
+            kmax = kmin + 1
+        pad_x, pad_top, pad_bot = dp(14), dp(10), dp(10)
+        step_x = (self.width - 2 * pad_x) / (n - 1)
+        pts = []
+        dots = []
+        for i, kg in enumerate(kgs):
+            x = pad_x + step_x * i
+            y = pad_bot + (self.height - pad_top - pad_bot) * \
+                (kg - kmin) / (kmax - kmin)
+            pts += [x, y]
+            dots.append((x, y))
+        with self.canvas:
+            Color(*T.CARD_BORDER)
+            Line(points=[pad_x, pad_bot,
+                         self.width - pad_x, pad_bot], width=1)
+            Color(*T.GREEN)
+            Line(points=pts, width=dp(1.6))
+            Color(*T.GREEN_DARK)
+            for (x, y) in dots:
+                Ellipse(pos=(x - dp(3), y - dp(3)), size=(dp(6), dp(6)))
 
-        Почему так: в Kivy halign/valign учитываются только когда
-        задан text_size. Поэтому мы привязываем text_size к ширине
-        метки — как только вёрстка выделит метке место, текст узнает
-        свою ширину, сможет центрироваться и переноситься.
-        adaptive_height подтягивает высоту метки к высоте текста.
-        """
-        label = MDLabel(
-            text=text,
-            halign="center",
-            adaptive_height=True,
-            **kwargs,
-        )
-        label.bind(
-            width=lambda inst, w: setattr(inst, "text_size", (w, None))
-        )
-        return label
 
-    @staticmethod
-    def _grow_with_content(card, birth_height):
-        """
-        Карточка рождается с ненулевой высотой (требование FBO —
-        нулевая высота при рождении падает с ошибкой 36054),
-        а дальше растёт по содержимому.
+class PetDetailScreen(AppMixin, MDScreen):
 
-        Важно: minimum_height НЕ включает padding карточки,
-        поэтому верхний и нижний отступы добавляем вручную.
-        """
-        card.height = birth_height
-        card.bind(
-            minimum_height=lambda inst, val: setattr(
-                inst, "height", val + inst.padding[1] + inst.padding[3]
-            )
-        )
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.pet_id = None
 
-    # ═══════════════════════════════════════════════════════
-    # ЗАГРУЗКА ДАННЫХ ПИТОМЦА
-    # ═══════════════════════════════════════════════════════
+    # ================================================== открытие экрана
+    def open_pet(self, pet_id: int):
+        self.pet_id = pet_id
+        self.refresh_all()
+        self.app.go_to("pet_detail")
 
-    def on_enter(self):
-        if self.current_pet_id:
-            self.load_pet_details(self.current_pet_id)
-
-    def load_pet_details(self, pet_id):
-        """Загрузить полную информацию о питомце."""
-        app = App.get_running_app()
-        pet = app.db.get_pet_by_id(pet_id)
+    def refresh_all(self):
+        pet = db.get_pet(self.pet_id)
         if not pet:
+            self.app.go_to("profile")
             return
+        # .get() — потому что в базе могут быть и СТАРЫЕ питомцы
+        # (спринты 1-2.6): после миграции поля есть, но не полагаемся
+        # на это лишний раз
+        self.ids.hdr_avatar.source = resolve_media(pet.get("photo") or "")
+        self.ids.l_name.text = pet.get("name") or "Без имени"
+        self.ids.l_species.text = (
+            pet.get("species") or "").strip() or "вид не указан"
+        birth = pet.get("birth_date") or ""
+        age = format_age(birth)
+        third = (pet.get("breed") or "").strip() or "порода не указана"
+        if age:
+            third += f"  ·  {age}"
+        if birth:
+            third += f"  ·  род. {fmt_display(birth)}"
+        self.ids.l_line3.text = third
 
-        self.current_pet_id = pet_id
-        (pet_id_db, name, species, breed, size,
-         age, weight, history, photo) = pet
+        self._build_photos()
+        self._build_videos()
+        self._build_meds()
+        self._build_feedings()
+        self._build_diet()
+        self._build_weights()
 
-        self.current_pet_weight = weight or 0
-        self.current_pet_name = name or ""
-        self.current_species = species or ""
+    def back(self):
+        self.app.go_to("profile")
 
-        # Заполняем поля
-        self.ids.pet_name.text = name or ""
+    # ================================================ лечение и правка
+    def open_treatment(self):
+        """Экран «Лечение и назначения» (функционал спринтов 1-2.6):
+        выбор препарата, будильники, история назначений."""
+        self.app.open_treatment(self.pet_id)
 
-        species_text = species if species else ""
-        if breed:
-            species_text = f"{species_text} · {breed}" if species_text else breed
-        self.ids.pet_species.text = species_text
+    def edit_pet(self):
+        """Анкета питомца в режиме редактирования."""
+        self.app.edit_pet(self.pet_id)
 
-        self.ids.pet_size.text = size if size else "—"
-        self.ids.pet_age.text = f"{age} лет" if age else "—"
-        self.ids.pet_weight.text = f"{weight} кг" if weight else "—"
-        self.ids.pet_history.text = (
-            history if history else "Нет дополнительных сведений"
+    def confirm_delete_pet(self):
+        """Диалог подтверждения удаления питомца (как в старом профиле:
+        MDDialog проверен на GT 710, FBO-мины в нём нет)."""
+        from kivymd.uix.dialog import (
+            MDDialog,
+            MDDialogButtonContainer,
+            MDDialogHeadlineText,
+            MDDialogSupportingText,
         )
+        from kivymd.uix.button import MDButton, MDButtonText
 
-        # Фото
-        photo_box = self.ids.photo_box
-        photo_box.clear_widgets()
-        if photo and os.path.exists(os.path.join(BASE_DIR, photo)):
-            img = Image(
-                source=os.path.join(BASE_DIR, photo),
-                fit_mode="cover",
-                size_hint=(None, None),
-                size=(dp(120), dp(120)),
-                pos_hint={"center_x": 0.5, "center_y": 0.5},
-            )
-            photo_box.add_widget(img)
-        else:
-            # Явный размер + pos_hint: иначе иконка прилипает к краю
-            photo_box.add_widget(
-                MDIcon(
-                    icon="paw",
-                    font_size="80sp",
-                    theme_text_color="Custom",
-                    text_color=PRIMARY,
-                    size_hint=(None, None),
-                    size=(dp(90), dp(90)),
-                    pos_hint={"center_x": 0.5, "center_y": 0.5},
-                )
-            )
+        pet = db.get_pet(self.pet_id)
+        pet_name = (pet or {}).get("name") or "питомца"
 
-        # Сбрасываем выбор препарата
-        self.selected_drug_id = None
-        self.selected_drug_name = ""
-        self.ids.drug_field.text = ""
+        def do_delete(*_args):
+            dialog.dismiss()
+            db.delete_pet(self.pet_id)
+            self.app.show_toast("Питомец удалён")
+            self.app.go_to("profile")
 
-        # Загружаем подходящие препараты
-        self._load_drugs_menu()
-
-        # Загружаем назначенное лечение
-        self._load_prescribed_treatment()
-
-        # Загружаем историю
-        self._load_prescriptions_history()
-
-    # ═══════════════════════════════════════════════════════
-    # ВЫБОР ПРЕПАРАТА
-    # ═══════════════════════════════════════════════════════
-
-    def _load_drugs_menu(self):
-        """Подготовить список препаратов."""
-        app = App.get_running_app()
-        self._suitable_drugs = app.db.get_drugs_for_species(
-            self.current_species
-        )
-        count = len(self._suitable_drugs)
-        self.ids.drugs_count.text = (
-            f"Подходит {count} "
-            f"{'препарат' if count == 1 else 'препарата' if count < 5 else 'препаратов'}"
-        )
-
-    def open_drug_menu(self, field, focused):
-        if not focused:
-            return
-        self._close_menu()
-
-        if not self._suitable_drugs:
-            App.get_running_app().show_toast("Нет подходящих препаратов")
-            return
-
-        menu_items = []
-        for drug in self._suitable_drugs:
-            drug_id = drug[0]
-            drug_name = drug[1]
-            category = drug[2] or ""
-            menu_items.append({
-                "text": f"{drug_name}  ({category})",
-                "on_release": partial(self.select_drug, drug_id, drug_name),
-            })
-
-        self._menu = MDDropdownMenu(
-            caller=field,
-            items=menu_items,
-            width=dp(300),
-            position="auto",
-        )
-        self._menu.open()
-        field.focus = False
-
-    def _close_menu(self):
-        if self._menu:
-            self._menu.dismiss()
-        self._menu = None
-
-    def select_drug(self, drug_id, drug_name, *args):
-        self._close_menu()
-        self.selected_drug_id = drug_id
-        self.selected_drug_name = drug_name
-        self.ids.drug_field.text = drug_name
-
-    # ═══════════════════════════════════════════════════════
-    # КНОПКА → ПЕРЕХОД В КАЛЕНДАРЬ
-    # ═══════════════════════════════════════════════════════
-
-    def go_to_calendar(self, *args):
-        """Перейти в календарь с предзаполненными данными."""
-        app = App.get_running_app()
-
-        if not self.selected_drug_id:
-            app.show_toast("Сначала выберите препарат")
-            return
-
-        # Получаем данные препарата
-        drug = app.db.get_drug_by_id(self.selected_drug_id)
-        if not drug:
-            return
-
-        duration_days = drug[9] if len(drug) > 9 else 7
-        if not duration_days or duration_days <= 0:
-            duration_days = 7
-
-        # Формируем даты
-        today = datetime.now()
-        start_str = today.strftime("%d.%m.%Y")
-        end_date = today + timedelta(days=duration_days - 1)
-        end_str = end_date.strftime("%d.%m.%Y")
-
-        # Передаём данные в календарь
-        calendar_screen = app.root.ids.screen_manager.get_screen("calendar")
-        calendar_screen.prefill_from_pet(
-            pet_id=self.current_pet_id,
-            pet_name=self.current_pet_name,
-            drug_id=self.selected_drug_id,
-            drug_name=self.selected_drug_name,
-            start_date=start_str,
-            end_date=end_str,
-        )
-
-        # Переходим в календарь
-        app.root.ids.screen_manager.current = "calendar"
-
-    # ═══════════════════════════════════════════════════════
-    # НАЗНАЧЕННОЕ ЛЕЧЕНИЕ
-    # ═══════════════════════════════════════════════════════
-
-    def _load_prescribed_treatment(self):
-        """Загрузить назначенное лечение."""
-        app = App.get_running_app()
-        reminders = app.db.get_active_reminders()
-        pet_reminders = [r for r in reminders if r[1] == self.current_pet_id]
-
-        treatment_box = self.ids.treatment_list
-        treatment_box.clear_widgets()
-
-        if not pet_reminders:
-            treatment_box.add_widget(
-                self._wrap_label(
-                    "Нет назначенного лечения",
-                    font_size="13sp",
-                    theme_text_color="Secondary",
-                )
-            )
-            return
-
-        for reminder in pet_reminders:
-            card = self._create_treatment_card(reminder)
-            treatment_box.add_widget(card)
-
-    def _create_treatment_card(self, reminder):
-        """Карточка активного лечения. Тап → экран деталей."""
-        (reminder_id, pet_id, drug_id, start_date, end_date, time) = reminder
-
-        app = App.get_running_app()
-        drug = app.db.get_drug_by_id(drug_id)
-        if not drug:
-            return self._wrap_label(
-                "Препарат не найден",
-                font_size="13sp",
-                theme_text_color="Secondary",
-            )
-
-        drug_name = drug[1]
-        category = drug[2] or ""
-        description = drug[3] or ""
-        dose_per_kg = drug[7] if len(drug) > 7 else 0
-        duration_days = drug[9] if len(drug) > 9 else 0
-
-        # НЕНУЛЕВАЯ высота при рождении — иначе FBO падает (36054)
-        card = MDCard(
-            orientation="vertical",
-            size_hint_y=None,
-            height=dp(96),
-            padding=[dp(14), dp(12), dp(14), dp(12)],
-            spacing=dp(4),
-            radius=[dp(12)],
-            md_bg_color=PRIMARY_SOFT,
-            elevation=1,
-            ripple_behavior=True,
-        )
-        self._grow_with_content(card, dp(96))
-
-        card._detail = {
-            "title": drug_name,
-            "subtitle": category or "Назначенное лечение",
-            "fields": self._build_treatment_fields(
-                description, start_date, end_date, time,
-                dose_per_kg, duration_days,
+        dialog = MDDialog(
+            MDDialogHeadlineText(text="Удалить питомца?"),
+            MDDialogSupportingText(
+                text=f"Вы уверены, что хотите удалить «{pet_name}»? "
+                     f"Будут удалены также его галереи, диеты, вес и "
+                     f"напоминания. Это действие нельзя отменить."
             ),
-        }
-        card.bind(on_release=self._open_detail)
+            MDDialogButtonContainer(
+                MDButton(
+                    MDButtonText(text="Отмена"),
+                    on_release=lambda *_: dialog.dismiss(),
+                ),
+                MDButton(
+                    MDButtonText(text="Удалить"),
+                    on_release=do_delete,
+                    theme_bg_color="Custom",
+                    md_bg_color=T.DANGER,
+                ),
+                spacing=dp(8),
+            ),
+        )
+        dialog.open()
 
-        card.add_widget(self._wrap_label(
-            drug_name,
-            font_size="15sp",
-            bold=True,
-            theme_text_color="Custom",
-            text_color=PRIMARY_DARK,
-        ))
-        card.add_widget(self._wrap_label(
-            f"{start_date} — {end_date} · {time}",
-            font_size="12sp",
-            theme_text_color="Custom",
-            text_color=TEXT_SUB,
-        ))
-        if category:
-            card.add_widget(self._wrap_label(
-                category,
-                font_size="11sp",
-                theme_text_color="Secondary",
+    # ================================================== галерея фото
+    def _build_photos(self):
+        box = self.ids.photos_box
+        box.clear_widgets()
+        photos = db.get_media(self.pet_id, "photo")
+        if not photos:
+            box.add_widget(self._hint("Фото пока нет — добавьте первое!"))
+        for m in photos:
+            tile = MDCard(
+                size_hint=(None, None), size=(dp(96), dp(96)),
+                radius=[dp(12)], md_bg_color=T.GREEN_SOFT,
+            )
+            tile.add_widget(FitImage(
+                source=resolve_media(m["path"]), radius=[dp(12)],
             ))
-        return card
-
-    def _build_treatment_fields(self, description, start_date, end_date,
-                                time, dose_per_kg, duration_days):
-        """Пары (подпись, значение) для экрана деталей."""
-        fields = []
-        if description:
-            fields.append(("Описание", description))
-        fields.append(("Период лечения", f"{start_date} — {end_date}"))
-        fields.append(("Время приёма", str(time)))
-        if dose_per_kg and dose_per_kg > 0:
-            fields.append(("Дозировка", f"{self._fmt(dose_per_kg)} мг/кг"))
-            if self.current_pet_weight > 0:
-                dose_mg = self.current_pet_weight * dose_per_kg
-                fields.append((
-                    f"На вес {self._fmt(self.current_pet_weight)} кг",
-                    f"{self._fmt(dose_mg)} мг на один приём",
-                ))
-        if duration_days and duration_days > 0:
-            fields.append(("Курс лечения", f"{duration_days} дн."))
-        return fields
-
-    # ═══════════════════════════════════════════════════════
-    # ИСТОРИЯ НАЗНАЧЕНИЙ
-    # ═══════════════════════════════════════════════════════
-
-    def _load_prescriptions_history(self):
-        """Загрузить историю назначений."""
-        app = App.get_running_app()
-        prescriptions = app.db.get_prescriptions_for_pet(self.current_pet_id)
-
-        history_box = self.ids.prescriptions_list
-        history_box.clear_widgets()
-
-        # Обновляем заголовок с количеством
-        count = len(prescriptions)
-        self.ids.history_toggle_text.text = (
-            f"История назначений ({count})"
-        )
-
-        if not prescriptions:
-            history_box.add_widget(
-                self._wrap_label(
-                    "Назначений пока нет",
-                    font_size="13sp",
-                    theme_text_color="Secondary",
-                )
+            del_btn = MDIconButton(
+                icon="close-circle", pos_hint={"right": 0.98, "top": 0.98},
+                theme_icon_color="Custom", icon_color=T.DANGER,
+                md_bg_color=T.WHITE, icon_size="18sp",
             )
+            del_btn.bind(
+                on_release=lambda *a, mid=m["id"], p=m["path"]:
+                self.delete_photo(mid, p)
+            )
+            tile.add_widget(del_btn)
+            box.add_widget(tile)
+
+    def add_photo(self):
+        src = pick_media_src("photo")
+        if not src:
+            return
+        rel = copy_media_to(src, self.pet_id)
+        if rel:
+            db.add_media(self.pet_id, rel, "photo")
+            self._build_photos()
+            self.app.show_toast("Фото добавлено")
+
+    def delete_photo(self, media_id: int, path: str):
+        db.delete_media(media_id)
+        delete_media_file(path)
+        self._build_photos()
+        self.app.show_toast("Фото удалено")
+
+    # ================================================== галерея видео
+    def _build_videos(self):
+        box = self.ids.videos_box
+        box.clear_widgets()
+        videos = db.get_media(self.pet_id, "video")
+        if not videos:
+            box.add_widget(self._hint(
+                "Видео пока нет. Добавьте клип — он проиграется прямо тут,"
+                " как в Instagram"
+            ))
+            return
+        if not HAS_FFPY:
+            box.add_widget(self._hint(
+                "Для просмотра видео установите ffpyplayer:\n"
+                "pip install ffpyplayer"
+            ))
+            return
+        for m in videos:
+            card = MDCard(
+                orientation="vertical",
+                md_bg_color=T.CARD,
+                line_color=T.CARD_BORDER,
+                radius=[dp(16)],
+                size_hint_y=None, height=dp(250),
+            )
+            player = VideoPlayer(
+                source=resolve_media(m["path"]),
+                size_hint=(1, 1),
+                pos_hint={"center_x": 0.5, "center_y": 0.5},
+                options={"allow_stretch": True},
+            )
+            card.add_widget(player)
+            row = BoxLayout(size_hint_y=None, height=dp(40),
+                            padding=[dp(10), 0])
+            row.add_widget(MDLabel(
+                text=m["path"].split("/")[-1],
+                theme_text_color="Custom", text_color=T.TEXT_SUB,
+                valign="middle",
+                size_hint_x=1,
+            ))
+            del_btn = MDIconButton(
+                icon="delete-outline", theme_icon_color="Custom",
+                icon_color=T.DANGER, icon_size="20sp",
+                pos_hint={"center_y": 0.5},
+            )
+            del_btn.bind(
+                on_release=lambda *a, mid=m["id"], p=m["path"]:
+                self.delete_video(mid, p)
+            )
+            row.add_widget(del_btn)
+            card.add_widget(row)
+            box.add_widget(card)
+
+    def add_video(self):
+        src = pick_media_src("video")
+        if not src:
+            return
+        rel = copy_media_to(src, self.pet_id)
+        if rel:
+            db.add_media(self.pet_id, rel, "video")
+            self._build_videos()
+            self.app.show_toast("Видео добавлено")
+
+    def delete_video(self, media_id: int, path: str):
+        db.delete_media(media_id)
+        delete_media_file(path)
+        self._build_videos()
+        self.app.show_toast("Видео удалено")
+
+    # ================================================== лекарства
+    def _build_meds(self):
+        box = self.ids.meds_box
+        box.clear_widgets()
+        meds = db.get_meds(self.pet_id)
+        if not meds:
+            box.add_widget(self._hint("Напоминаний о лекарствах нет"))
+        for m in meds:
+            row = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(6))
+            row.add_widget(MDLabel(
+                text=f"[b]{m['time']}[/b]  {m['title']}",
+                markup=True, theme_text_color="Custom",
+                text_color=T.TEXT_MAIN, valign="middle",
+                text_size=(self.width - dp(70), None),
+            ))
+            row.add_widget(self._del_btn(
+                lambda *a, mid=m["id"]: self.delete_med(mid)))
+            box.add_widget(row)
+
+    def add_med(self):
+        title = self.ids.med_title.text.strip()
+        time_s = self.ids.med_time.text.strip()
+        if not title or ":" not in time_s:
+            self.app.show_toast("Укажите название и время (ЧЧ:ММ)")
+            return
+        try:
+            hh, mm = time_s.split(":")
+            _dt.time(int(hh), int(mm))
+        except ValueError:
+            self.app.show_toast("Время должно быть ЧЧ:ММ, например 09:30")
+            return
+        db.add_med(self.pet_id, title, f"{int(hh):02d}:{int(mm):02d}")
+        self.ids.med_title.text = ""
+        self.ids.med_time.text = ""
+        self._build_meds()
+        self.app.show_toast("Напоминание о лекарстве добавлено")
+
+    def delete_med(self, med_id: int):
+        db.delete_med(med_id)
+        self._build_meds()
+
+    # ================================================== кормление
+    def _build_feedings(self):
+        box = self.ids.feed_box
+        box.clear_widgets()
+        items = db.get_feedings(self.pet_id)
+        if not items:
+            box.add_widget(self._hint(
+                "Расписания кормления нет — добавьте время и рацион"
+            ))
+        for f in items:
+            row = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(6))
+            row.add_widget(MDLabel(
+                text=f"[b]{f['time']}[/b]  {f['note'] or 'кормление'}",
+                markup=True, theme_text_color="Custom",
+                text_color=T.TEXT_MAIN, valign="middle",
+                text_size=(self.width - dp(70), None),
+            ))
+            row.add_widget(self._del_btn(
+                lambda *a, fid=f["id"]: self.delete_feeding(fid)))
+            box.add_widget(row)
+
+    def add_feeding(self):
+        time_s = self.ids.feed_time.text.strip()
+        note = self.ids.feed_note.text.strip()
+        if ":" not in time_s:
+            self.app.show_toast("Укажите время кормления (ЧЧ:ММ)")
+            return
+        try:
+            hh, mm = time_s.split(":")
+            _dt.time(int(hh), int(mm))
+        except ValueError:
+            self.app.show_toast("Время должно быть ЧЧ:ММ, например 18:00")
+            return
+        db.add_feeding(self.pet_id, f"{int(hh):02d}:{int(mm):02d}", note)
+        self.ids.feed_time.text = ""
+        self.ids.feed_note.text = ""
+        self._build_feedings()
+        self.app.show_toast("Кормление добавлено в расписание")
+
+    def delete_feeding(self, feeding_id: int):
+        db.delete_feeding(feeding_id)
+        self._build_feedings()
+
+    # ================================================== диета
+    def _build_diet(self):
+        box = self.ids.diet_box
+        box.clear_widgets()
+        diet = db.get_active_diet(self.pet_id)
+        if not diet:
+            box.add_widget(self._hint(
+                "Активной диеты нет. Создайте: название рациона, срок в днях"
+                " и время кормления — приложение напомнит о каждом приёме"
+            ))
             return
 
-        for prescription in prescriptions:
-            card = self._create_history_card(prescription)
-            history_box.add_widget(card)
-
-    def _create_history_card(self, prescription):
-        """Карточка истории. Тап → экран деталей."""
-        (presc_id, prescribed_date, drug_name, category,
-         dose_per_kg, concentration, duration_days, notes) = prescription
+        start = parse_date(diet["start_date"])
+        today = _dt.date.today()
+        day_no = (today - start).days + 1 if start else 1
+        total = diet["days"]
+        finished = day_no > total
 
         card = MDCard(
-            orientation="vertical",
-            size_hint_y=None,
-            height=dp(72),
-            padding=[dp(14), dp(10), dp(14), dp(10)],
-            spacing=dp(6),
-            radius=[dp(10)],
-            md_bg_color=CARD,
-            line_color=CARD_BORDER,
-            elevation=0,
-            ripple_behavior=True,
+            orientation="vertical", md_bg_color=T.GREEN_SOFT,
+            radius=[dp(14)], padding=dp(14), size_hint_y=None,
+            height=dp(150), spacing=dp(4),
         )
-        self._grow_with_content(card, dp(72))
-
-        # Короткая сводка второй строкой: дата · доза · курс
-        if dose_per_kg and dose_per_kg > 0:
-            summary = f"Доза: {self._fmt(dose_per_kg)} мг/кг"
-        else:
-            summary = "Доза: по инструкции"
-        if duration_days and duration_days > 0:
-            summary += f" · Курс: {duration_days} дн."
-
-        card._detail = {
-            "title": drug_name,
-            "subtitle": f"Назначено {prescribed_date[:10]}",
-            "fields": self._build_prescription_fields(
-                category, dose_per_kg, concentration, duration_days, notes,
-            ),
-        }
-        card.bind(on_release=self._open_detail)
-
-        # Верхняя строка: название (переносится) + стрелка
-        top = MDBoxLayout(adaptive_height=True, spacing=dp(8))
-        top.add_widget(self._wrap_label(
-            drug_name,
-            font_size="14sp",
-            bold=True,
-            theme_text_color="Custom",
-            text_color=TEXT_MAIN,
+        card.add_widget(MDLabel(
+            text=f"[b]Диета «{diet['title']}»[/b]", markup=True,
+            theme_text_color="Custom", text_color=T.GREEN,
+            size_hint_y=None, height=dp(26),
         ))
-        top.add_widget(MDIcon(
-            icon="chevron-right",
-            theme_text_color="Custom",
-            text_color=TEXT_SUB,
-            size_hint=(None, None),
-            size=(dp(24), dp(24)),
+        card.add_widget(MDLabel(
+            text=f"Старт {fmt_display(diet['start_date'])} · "
+                 f"{total} дн. · день {min(day_no, total)} из {total}",
+            theme_text_color="Custom", text_color=T.TEXT_SUB,
+            size_hint_y=None, height=dp(22),
+        ))
+        progress = MDLinearProgressIndicator(
+            value=min(100.0, max(0.0, day_no / total * 100.0)),
+            size_hint_y=None, height=dp(6), radius=[dp(3)],
+        )
+        card.add_widget(progress)
+
+        if finished:
+            btn = MDButton(style="filled", size_hint_y=None, height=dp(40))
+            btn.add_widget(MDButtonText(
+                text="Диета завершена — записать вес питомца"))
+            btn.bind(on_release=lambda *a: self.focus_weight())
+            card.add_widget(btn)
+        box.add_widget(card)
+
+    def create_diet(self):
+        title = self.ids.diet_title.text.strip()
+        days_s = self.ids.diet_days.text.strip()
+        times_s = self.ids.diet_times.text.strip()
+        if not title or not days_s.isdigit() or not (1 <= int(days_s) <= 365):
+            self.app.show_toast("Укажите название и срок диеты (1–365 дней)")
+            return
+        start = _dt.date.today().strftime("%Y-%m-%d")
+        db.add_diet(self.pet_id, title, start, int(days_s))
+        # времена кормления диеты -> в общий график кормления
+        added = 0
+        for t in times_s.replace(";", ",").split(","):
+            t = t.strip()
+            if not t or ":" not in t:
+                continue
+            try:
+                hh, mm = t.split(":")
+                _dt.time(int(hh), int(mm))
+            except ValueError:
+                continue
+            db.add_feeding(self.pet_id, f"{int(hh):02d}:{int(mm):02d}", title)
+            added += 1
+        self.ids.diet_title.text = ""
+        self.ids.diet_days.text = ""
+        self.ids.diet_times.text = ""
+        self._build_diet()
+        self._build_feedings()
+        self.app.show_toast(
+            f"Диета начата. Кормлений в расписании: +{added}")
+
+    def finish_diet(self):
+        diet = db.get_active_diet(self.pet_id)
+        if diet:
+            db.finish_diet(diet["id"])
+            self._build_diet()
+            self.app.show_toast("Диета завершена. Теперь взвесьте питомца")
+
+    def focus_weight(self):
+        self.ids.weight_input.focus = True
+
+    # ================================================== вес
+    def _build_weights(self):
+        weights = db.get_weights(self.pet_id)
+        last = weights[-1] if weights else None
+        if last:
+            delta = ""
+            if len(weights) >= 2:
+                diff = last["kg"] - weights[-2]["kg"]
+                arrow = "↑" if diff > 0 else ("↓" if diff < 0 else "→")
+                delta = f"  ({arrow} {abs(diff):.2f} кг)"
+            self.ids.l_last_weight.text = (
+                f"Последний замер: {last['kg']:.2f} кг "
+                f"({fmt_display(last['weighed_at'])}){delta}"
+            )
+        else:
+            self.ids.l_last_weight.text = "Замеров пока нет"
+
+        # список последних 6 замеров
+        lst = self.ids.weights_list
+        lst.clear_widgets()
+        for w in reversed(weights[-6:]):
+            lst.add_widget(MDLabel(
+                text=f"{fmt_display(w['weighed_at'])} — {w['kg']:.2f} кг",
+                theme_text_color="Custom", text_color=T.TEXT_SUB,
+                size_hint_y=None, height=dp(24),
+            ))
+
+        chart = self.ids.weight_chart
+        chart.set_data(weights)
+        if len(weights) >= 2:
+            kgs = [w["kg"] for w in weights]
+            self.ids.l_chart_stats.text = (
+                f"мин {min(kgs):.2f} кг · макс {max(kgs):.2f} кг · "
+                f"Δ {max(kgs) - min(kgs):.2f} кг"
+            )
+        else:
+            self.ids.l_chart_stats.text = (
+                "График появится после двух замеров")
+
+    def add_weight(self):
+        s = self.ids.weight_input.text.strip().replace(",", ".")
+        try:
+            kg = float(s)
+            if not (0.01 <= kg <= 2000):
+                raise ValueError
+        except ValueError:
+            self.app.show_toast("Введите вес в кг, например 4.2")
+            return
+        db.add_weight(self.pet_id, kg)
+        self.ids.weight_input.text = ""
+        self._build_weights()
+        self.app.show_toast(f"Записано: {kg:.2f} кг")
+
+    # ================================================== утилиты
+    def _hint(self, text: str) -> MDLabel:
+        return MDLabel(
+            text=text, halign="center",
+            theme_text_color="Custom", text_color=T.TEXT_SUB,
+            size_hint_y=None, height=dp(40),
+            text_size=(self.width - dp(60), None),
+        )
+
+    def _del_btn(self, callback) -> MDIconButton:
+        btn = MDIconButton(
+            icon="delete-outline", theme_icon_color="Custom",
+            icon_color=T.DANGER, icon_size="20sp",
+            size_hint=(None, None), size=(dp(30), dp(30)),
             pos_hint={"center_y": 0.5},
-        ))
-        card.add_widget(top)
-
-        # Нижняя строка: дата и доза — одной спокойной строкой
-        card.add_widget(self._wrap_label(
-            f"{prescribed_date[:10]} · {summary}",
-            font_size="12sp",
-            theme_text_color="Custom",
-            text_color=TEXT_SUB,
-        ))
-        return card
-
-    def _build_prescription_fields(self, category, dose_per_kg,
-                                   concentration, duration_days, notes):
-        """Пары (подпись, значение) для экрана деталей истории."""
-        fields = []
-        if category:
-            fields.append(("Категория", category))
-        if dose_per_kg and dose_per_kg > 0:
-            fields.append(("Дозировка", f"{self._fmt(dose_per_kg)} мг/кг"))
-            if self.current_pet_weight > 0:
-                dose_mg = self.current_pet_weight * dose_per_kg
-                fields.append((
-                    f"На вес {self._fmt(self.current_pet_weight)} кг",
-                    f"{self._fmt(dose_mg)} мг",
-                ))
-                if concentration and concentration > 0:
-                    volume = dose_mg / concentration
-                    fields.append((
-                        "Объём в шприц",
-                        f"{self._fmt(volume)} мл "
-                        f"(концентрация {self._fmt(concentration)} мг/мл)",
-                    ))
-        else:
-            fields.append(("Дозировка", "по инструкции"))
-        if duration_days and duration_days > 0:
-            fields.append(("Курс лечения", f"{duration_days} дн."))
-        if notes:
-            fields.append(("Заметки", notes))
-        return fields
-
-    def _open_detail(self, card, *args):
-        """Открыть экран «Детали назначения» для карточки."""
-        app = App.get_running_app()
-        screen_manager = app.root.ids.screen_manager
-        detail = screen_manager.get_screen("appointment_detail")
-        detail.show_detail(
-            card._detail["title"],
-            card._detail["subtitle"],
-            card._detail["fields"],
         )
-        screen_manager.current = "appointment_detail"
+        btn.bind(on_release=callback)
+        return btn
 
-    def toggle_history(self, *args):
-        """Развернуть/свернуть историю назначений."""
-        self._history_expanded = not self._history_expanded
-        history_container = self.ids.history_container
 
-        if self._history_expanded:
-            # Развернуть
-            history_container.opacity = 1
-            history_container.size_hint_y = None
-            history_container.height = history_container.minimum_height
-            self.ids.history_arrow.icon = "chevron-up"
-        else:
-            # Свернуть
-            history_container.opacity = 0
-            history_container.size_hint_y = None
-            history_container.height = 0
-            self.ids.history_arrow.icon = "chevron-down"
-
-    # ═══════════════════════════════════════════════════════
-    # УТИЛИТЫ
-    # ═══════════════════════════════════════════════════════
-
-    @staticmethod
-    def _fmt(value):
-        if value < 1:
-            text = f"{value:.3f}"
-        else:
-            text = f"{value:.2f}"
-        text = text.rstrip("0").rstrip(".")
-        return text if text else "0"
-
-    def go_back(self):
-        self.manager.current = "profile"
+# kv использует WeightChart как вложенный виджет — имя должно быть
+# в Factory к моменту создания PetDetailScreen (урок FactoryException)
+Factory.register("WeightChart", cls=WeightChart)
