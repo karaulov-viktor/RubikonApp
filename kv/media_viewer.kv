@@ -1,0 +1,99 @@
+# kv/media_viewer.kv — полноэкранный просмотр фото и видео питомца.
+#
+# Каркас держит kv, логика — в screens/media_viewer.py.
+# Чёрный фон, белые иконки: просмотрщик не использует тему T —
+# он всегда тёмный, независимо от палитры приложения.
+
+<MediaViewerScreen>:
+    md_bg_color: 0, 0, 0, 1
+
+    MDBoxLayout:
+        orientation: "vertical"
+
+        # === ВЕРХНЯЯ ПАНЕЛЬ: назад + счётчик ===
+        MDBoxLayout:
+            size_hint_y: None
+            height: "56dp"
+            padding: [dp(8), 0, dp(16), 0]
+
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                pos_hint: {"center_y": 0.5}
+                on_release: root.close()
+
+            MDLabel:
+                id: l_counter
+                text: ""
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 0.92
+                font_size: "15sp"
+                valign: "middle"
+
+        # === СЦЕНА: фото / видео / стрелки / подсказка ===
+        FloatLayout:
+
+            AsyncImage:
+                id: photo_view
+                fit_mode: "contain"
+                size_hint: 1, 1
+                pos_hint: {"x": 0, "y": 0}
+                opacity: 1
+
+            MDBoxLayout:
+                id: video_stage
+                size_hint: 1, 1
+                pos_hint: {"x": 0, "y": 0}
+
+            MDIconButton:
+                id: btn_prev
+                icon: "chevron-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                md_bg_color: 0, 0, 0, 0.45
+                icon_size: "30sp"
+                size_hint: None, None
+                size: dp(48), dp(48)
+                pos_hint: {"x": 0.02, "center_y": 0.5}
+                on_release: root.prev_media()
+
+            MDIconButton:
+                id: btn_next
+                icon: "chevron-right"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                md_bg_color: 0, 0, 0, 0.45
+                icon_size: "30sp"
+                size_hint: None, None
+                size: dp(48), dp(48)
+                pos_hint: {"right": 0.98, "center_y": 0.5}
+                on_release: root.next_media()
+
+            MDLabel:
+                id: l_msg
+                text: ""
+                halign: "center"
+                valign: "middle"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 0.92
+                font_size: "14sp"
+                size_hint: 1, 1
+                text_size: (self.width - dp(48), None)
+                pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                opacity: 0
+
+        # === НИЖНЯЯ СТРОКА: имя файла ===
+        MDBoxLayout:
+            size_hint_y: None
+            height: "40dp"
+            padding: [dp(16), 0, dp(16), 0]
+
+            MDLabel:
+                id: l_fname
+                text: ""
+                halign: "center"
+                valign: "middle"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 0.65
+                font_size: "12sp"

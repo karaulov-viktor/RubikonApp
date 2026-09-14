@@ -50,6 +50,7 @@ from screens.calendar import CalendarScreen
 from screens.catalog import CatalogScreen
 from screens.disclaimer import DisclaimerScreen
 from screens.drug_detail import DrugDetailScreen
+from screens.media_viewer import MediaViewerScreen
 from screens.pet_detail import PetDetailScreen
 from screens.pet_form import PetFormScreen
 from screens.pet_treatment import PetTreatmentScreen
@@ -124,6 +125,7 @@ SUB_NAV_LABELS = {
     "pet_form": "Профиль",
     "pet_treatment": "Профиль",   # лечение и назначения
     "appointment_detail": "Профиль",
+    "media_viewer": "Профиль",    # просмотр фото/видео на весь экран
 }
 
 KV_FILES = (
@@ -138,6 +140,7 @@ KV_FILES = (
     "kv/disclaimer.kv",
     "kv/calculator.kv",
     "kv/calendar.kv",
+    "kv/media_viewer.kv",
 )
 
 
@@ -167,19 +170,20 @@ class RubikonApp(MDApp):
     def build(self):
         self.theme_cls.theme_style = "Light"       # белая база
         self.theme_cls.primary_palette = "Green"   # фирменный зелёный
-        self.theme_cls.primary_hue = "800"         # тёмный, ближе к #177300
+        self.theme_cls.primary_hue = "900"         # тёмный, ближе к #14532D
 
         # БЕЛЫЙ фон окна — литералом, а не через T.BG: если у пользователя
         # остался старый theme.py, окно всё равно будет белым.
         Window.clearcolor = (1, 1, 1, 1)
 
-        # Самопроверка окружения (ответ на жалобу «экраны не белые»):
-        # в консоли должна быть строка с версией темы whitegreen-3.
+        # Самопроверка окружения: в консоли должна быть строка
+        # с версией темы whitegreen-4 (белое приложение, тёмно-зелёные
+        # шрифты; бирюза/мята убраны).
         print(f"[RubikonApp] KivyMD {getattr(kivymd, '__version__', '?')}"
               f", тема {getattr(T, 'PALETTE_VERSION', 'НЕИЗВЕСТНА')}")
-        if getattr(T, "PALETTE_VERSION", "") != "whitegreen-3":
+        if getattr(T, "PALETTE_VERSION", "") != "whitegreen-4":
             print("[RubikonApp] ВНИМАНИЕ: models/theme.py устарел —"
-                  " скопируйте файл из пакета v3, иначе цвета будут"
+                  " скопируйте файл из пакета v4, иначе цвета будут"
                   " неправильными!")
         if getattr(kivymd, "__version__", "2.0.0") != "2.0.0":
             print("[RubikonApp] ВНИМАНИЕ: требуется KivyMD 2.0.0"
@@ -226,8 +230,9 @@ class RubikonApp(MDApp):
     def go_to(self, screen_name: str):
         """Единая точка переходов: экран + подсветка нижнего меню."""
         self.root.ids.screen_manager.current = screen_name
-        if screen_name in ("splash", "disclaimer"):
-            # заставка и согласие идут без нижнего меню
+        if screen_name in ("splash", "disclaimer", "media_viewer"):
+            # заставка, согласие и полноэкранный просмотрщик медиа
+            # идут без нижнего меню
             if self.nav_bar.parent is not None:
                 self.root.remove_widget(self.nav_bar)
         elif self.nav_bar.parent is None:

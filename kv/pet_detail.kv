@@ -182,7 +182,8 @@
                         size_hint_y: None
                         height: self.minimum_height
 
-                # === ГАЛЕРЕЯ ВИДЕО (инлайн, как в Instagram) ===
+                # === ГАЛЕРЕЯ ВИДЕО (список клипов; плеер открывается
+                # на весь экран по тапу, грузится только при просмотре) ===
                 MDCard:
                     orientation: "vertical"
                     md_bg_color: T.CARD
@@ -420,7 +421,8 @@
                             MDButtonText:
                                 text: "Начать"
 
-                # === ВЕС ===
+                # === ВЕС (список замеров; Canvas-график убран по
+                # решению владельца — отображался некорректно) ===
                 MDCard:
                     orientation: "vertical"
                     md_bg_color: T.CARD
@@ -435,7 +437,7 @@
                     spacing: dp(8)
 
                     MDLabel:
-                        text: "Вес и динамика"
+                        text: "Вес и замеры"
                         font_style: "Title"
                         role: "small"
                         bold: True
@@ -454,13 +456,8 @@
                         height: max(dp(22), self.texture_size[1])
                         text_size: (self.width - dp(8), None)
 
-                    WeightChart:
-                        id: weight_chart
-                        size_hint_y: None
-                        height: "150dp"
-
                     MDLabel:
-                        id: l_chart_stats
+                        id: l_weight_stats
                         text: ""
                         font_size: "12sp"
                         theme_text_color: "Custom"

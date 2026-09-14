@@ -5,38 +5,32 @@
   - аватар НА ВСЮ ШИРИНУ экрана (260dp) + кнопки назад/правка/удаление
   - карточка информации: имя / вид / порода · возраст · дата рождения
   - Лечение и назначения (старый функционал, тап -> экран)
-  - Галерея фото (плитки 96dp) и видео (инлайн-плеер)
+  - Галерея фото (плитки 96dp, тап -> полноэкранный просмотр) и видео
+    (карточки, тап -> просмотрщик; видео грузится ТОЛЬКО при открытии)
   - Лекарства (список + добавление) -> уведомления по времени
   - Кормление: РАСЧЁТ НОРМЫ по виду/весу/возрасту (RER/MER, WSAVA),
     расписание с порциями в граммах, ручное добавление
   - Диета: ПОДБОР рациона по профилю (возраст, стерилизация, тренд
     веса), активная диета с целью и калорийностью, ручная форма
-  - Вес: Canvas-график динамики + список замеров + запись
+  - Вес: список замеров + запись (Canvas-график убран по решению
+    владельца — отображался некорректно, список информативнее)
 
 Все списки строятся кодом; kv держит каркас и заголовки секций.
 
 Уроки прошлых пакетов (учтены):
   - MDIcon в kivymd.uix.label, FitImage в kivymd.uix.fitimage (2.0);
   - self.app недоступен без AppMixin (screens/__init__.py);
-  - WeightChart нужно регистрировать в Factory;
   - фиксированная высота многострочных label = наложения текста
     (теперь авто-высота по texture_size);
   - юникод-стрелки ↑/↓ не рендерятся Roboto на Windows -> слова.
 """
 import datetime as _dt
 
-from kivy.clock import Clock
-from kivy.core.text import Label as CoreLabel
-from kivy.metrics import dp, sp
+from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.videoplayer import VideoPlayer
-from kivy.uix.widget import Widget
-from kivy.graphics import (Color, Ellipse, Line, Rectangle,
-                           RoundedRectangle)
 from kivymd.uix.button import MDButton, MDButtonText, MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.fitimage import FitImage
-from kivy.factory import Factory
 from kivymd.uix.label import MDLabel, MDIcon
 from kivymd.uix.progressindicator import MDLinearProgressIndicator
 from kivymd.uix.screen import MDScreen
@@ -61,6 +55,9 @@ try:
     HAS_FFPY = True
 except Exception:
     HAS_FFPY = False
+
+# Точная команда установки для подсказки (Windows, venv проекта)
+FFPY_INSTALL_HINT = ("venv\\Scripts\\python.exe -m pip install ffpyplayer")
 
 
 def _esc(s: str) -> str:
@@ -99,120 +96,14 @@ def _field(hint: str, width_hint: float, cb=None) -> MDTextField:
     return tf
 
 
-class WeightChart(Widget):
-    """Canvas-график веса: белая подложка, сетка, линия, точки.
-
-    Почему в v2 график не рисовался: set_data() уходил в ранний выход
-    при width<50dp (виджет ещё не уложен), а повторного size-события
-    уже не приходило. Теперь перерисовка идёт и по size, и по pos,
-    плюс отложенный вызов через Clock — после прохода лэйаута.
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._weights = []
-        self.bind(size=self._on_layout, pos=self._on_layout)
-
-    def _on_layout(self, *args):
-        Clock.schedule_once(lambda dt: self._draw(), 0)
-
-    def set_data(self, weights: list):
-        self._weights = list(weights or [])
-        Clock.schedule_once(lambda dt: self._draw(), 0)
-
-    def _hint_texture(self, text: str):
-        sub = T.TEXT_SUB
-        lbl = CoreLabel(text=text, font_size=sp(13),
-                        color=(sub[0], sub[1], sub[2], 1))
-        lbl.refresh()
-        return lbl.texture
-
-    def _draw(self, *args):
-        self.canvas.clear()
-        w, h = self.width, self.height
-        if w < dp(40) or h < dp(30):
-            return  # ещё не уложен — придёт событие size/pos
-
-        pad_l, pad_r = dp(16), dp(16)
-        pad_t, pad_b = dp(12), dp(14)
-        cw, ch = w - pad_l - pad_r, h - pad_t - pad_b
-
-        with self.canvas:
-            # фон и рамка (белая карточка — иначе прозрачность шоколадом)
-            Color(1, 1, 1, 1)
-            RoundedRectangle(pos=self.pos, size=self.size,
-                             radius=[dp(10)])
-            Color(*T.CARD_BORDER)
-            Line(rounded_rectangle=[self.x, self.y, self.width,
-                                    self.height, dp(10)], width=1)
-
-            kgs = []
-            for x in self._weights:
-                try:
-                    kgs.append(float(x["kg"]))
-                except (TypeError, ValueError, KeyError):
-                    continue
-
-            if not kgs:
-                tex = self._hint_texture(
-                    "Запишите вес дважды — здесь появится график")
-                self._draw_hint(tex)
-                return
-
-            n = len(kgs)
-            kmin, kmax = min(kgs), max(kgs)
-            span = kmax - kmin
-            if span < 1e-9:
-                kmin -= 0.5
-                kmax += 0.5
-            else:
-                kmin -= span * 0.12   # запас сверху/снизу, чтобы
-                kmax += span * 0.12   # точки не липли к краям
-
-            # сетка
-            Color(*T.CARD_BORDER)
-            Line(points=[pad_l, pad_t + ch / 2,
-                         pad_l + cw, pad_t + ch / 2], width=1)
-            Line(points=[pad_l, pad_t, pad_l + cw, pad_t], width=1)
-
-            if n == 1:
-                cx, cy = pad_l + cw / 2, pad_t + ch / 2
-                Color(*T.GREEN)
-                Ellipse(pos=(cx - dp(5), cy - dp(5)), size=(dp(10), dp(10)))
-                return
-
-            step = cw / (n - 1)
-            pts = []
-            for i, kg in enumerate(kgs):
-                pts.append(pad_l + step * i)
-                pts.append(pad_t + ch * (kg - kmin) / (kmax - kmin))
-
-            Color(*T.GREEN)
-            Line(points=pts, width=dp(2))
-            for i in range(n):
-                x, y = pts[2 * i], pts[2 * i + 1]
-                Color(1, 1, 1, 1)   # белая обводка точки
-                Ellipse(pos=(x - dp(5), y - dp(5)), size=(dp(10), dp(10)))
-                Color(*T.GREEN_DARK)
-                Ellipse(pos=(x - dp(3.5), y - dp(3.5)),
-                        size=(dp(7), dp(7)))
-
-    def _draw_hint(self, texture):
-        if not texture:
-            return
-        tx = self.center_x - texture.width / 2
-        ty = self.center_y - texture.height / 2
-        self.canvas.add(Color(1, 1, 1, 1))
-        self.canvas.add(
-            Rectangle(texture=texture, pos=(tx, ty),
-                      size=(texture.width, texture.height)))
-
-
 class PetDetailScreen(AppMixin, MDScreen):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.pet_id = None
+        # пути медиа текущего питомца для полноэкранного просмотрщика
+        self._photo_paths = []
+        self._video_paths = []
         # --- состояние панели расчёта нормы ---
         self._nutr_open = False
         self._nutr_ster = False
@@ -329,13 +220,18 @@ class PetDetailScreen(AppMixin, MDScreen):
         box = self.ids.photos_box
         box.clear_widgets()
         photos = db.get_media(self.pet_id, "photo")
+        # порядок показа в просмотрщике = порядок плиток в галерее
+        self._photo_paths = [resolve_media(m["path"]) for m in photos]
         if not photos:
             box.add_widget(self._hint("Фото пока нет — добавьте первое!"))
-        for m in photos:
+        for idx, m in enumerate(photos):
             tile = MDCard(
                 size_hint=(None, None), size=(dp(96), dp(96)),
                 radius=[dp(12)], md_bg_color=T.GREEN_SOFT,
+                ripple_behavior=True,
             )
+            # тап по плитке (не по крестику) -> полноэкранный просмотр
+            tile.bind(on_release=lambda *a, i=idx: self.open_photo(i))
             tile.add_widget(FitImage(
                 source=resolve_media(m["path"]), radius=[dp(12)],
             ))
@@ -350,6 +246,11 @@ class PetDetailScreen(AppMixin, MDScreen):
             )
             tile.add_widget(del_btn)
             box.add_widget(tile)
+
+    def open_photo(self, index: int):
+        """Полноэкранный просмотр фото с листанием по галерее."""
+        self.app.root.ids.screen_manager.get_screen(
+            "media_viewer").open_photos(self._photo_paths, index)
 
     def add_photo(self):
         src = pick_media_src("photo")
@@ -369,43 +270,45 @@ class PetDetailScreen(AppMixin, MDScreen):
 
     # ================================================== галерея видео
     def _build_videos(self):
+        """Карточки клипов БЕЗ плееров: раньше каждый клип в списке
+        создавал свой VideoPlayer — все видео грузились одновременно,
+        экран вис, а без ffpyplayer всё секция показывала заглушку.
+        Теперь список лёгкий (иконка + имя файла), а плеер создаётся
+        один раз и только когда пользователь открыл клип."""
         box = self.ids.videos_box
         box.clear_widgets()
         videos = db.get_media(self.pet_id, "video")
+        self._video_paths = [resolve_media(m["path"]) for m in videos]
         if not videos:
             box.add_widget(self._hint(
-                "Видео пока нет. Добавьте клип — он проиграется прямо тут,"
-                " как в Instagram"
+                "Видео пока нет. Добавьте клип — он откроется в "
+                "полноэкранном плеере"
             ))
             return
-        if not HAS_FFPY:
-            box.add_widget(self._hint(
-                "Для просмотра видео установите ffpyplayer:\n"
-                "pip install ffpyplayer"
-            ))
-            return
-        for m in videos:
+        for idx, m in enumerate(videos):
             card = MDCard(
-                orientation="vertical",
-                md_bg_color=T.CARD,
-                line_color=T.CARD_BORDER,
-                radius=[dp(16)],
-                size_hint_y=None, height=dp(250),
+                orientation="horizontal",
+                md_bg_color=T.GREEN_SOFT,
+                radius=[dp(12)],
+                size_hint_y=None, height=dp(56),
+                padding=[dp(12), 0],
+                spacing=dp(8),
+                ripple_behavior=True,
             )
-            player = VideoPlayer(
-                source=resolve_media(m["path"]),
-                size_hint=(1, 1),
-                pos_hint={"center_x": 0.5, "center_y": 0.5},
-                options={"allow_stretch": True},
-            )
-            card.add_widget(player)
-            row = BoxLayout(size_hint_y=None, height=dp(40),
-                            padding=[dp(10), 0])
-            row.add_widget(MDLabel(
-                text=m["path"].split("/")[-1],
-                theme_text_color="Custom", text_color=T.TEXT_SUB,
+            card.bind(on_release=lambda *a, i=idx: self.open_video(i))
+            card.add_widget(MDIcon(
+                icon="play-circle-outline",
+                theme_icon_color="Custom", icon_color=T.GREEN,
+                size_hint_x=None, size_hint_y=None,
+                size=(dp(28), dp(28)),
+                pos_hint={"center_y": 0.5},
+            ))
+            card.add_widget(MDLabel(
+                text=_esc(m["path"].split("/")[-1]),
+                theme_text_color="Custom", text_color=T.TEXT_MAIN,
                 valign="middle",
                 size_hint_x=1,
+                text_size=(None, None),
             ))
             del_btn = MDIconButton(
                 icon="delete-outline", theme_icon_color="Custom",
@@ -416,9 +319,16 @@ class PetDetailScreen(AppMixin, MDScreen):
                 on_release=lambda *a, mid=m["id"], p=m["path"]:
                 self.delete_video(mid, p)
             )
-            row.add_widget(del_btn)
-            card.add_widget(row)
+            card.add_widget(del_btn)
             box.add_widget(card)
+
+    def open_video(self, index: int):
+        """Полноэкранный плеер; видео грузится только сейчас."""
+        if not HAS_FFPY:
+            self.app.show_toast(
+                "Нужен ffpyplayer: " + FFPY_INSTALL_HINT, duration=4)
+        self.app.root.ids.screen_manager.get_screen(
+            "media_viewer").open_videos(self._video_paths, index)
 
     def add_video(self):
         src = pick_media_src("video")
@@ -942,29 +852,40 @@ class PetDetailScreen(AppMixin, MDScreen):
         # список последних 6 замеров
         lst = self.ids.weights_list
         lst.clear_widgets()
-        for w in reversed(weights[-6:]):
+        # ВСЕ замеры, свежие сверху, со словесной динамикой
+        # (юникод-стрелки не рендерятся Roboto на Windows — слова)
+        for i in range(len(weights) - 1, -1, -1):
+            w = weights[i]
+            text = f"{fmt_display(w['weighed_at'])} — {w['kg']:.2f} кг"
+            if i > 0:
+                d = w["kg"] - weights[i - 1]["kg"]
+                if d > 0:
+                    text += f"  ·  рост +{d:.2f}"
+                elif d < 0:
+                    text += f"  ·  снижение {abs(d):.2f}"
             lst.add_widget(MDLabel(
-                text=f"{fmt_display(w['weighed_at'])} — {w['kg']:.2f} кг",
-                theme_text_color="Custom", text_color=T.TEXT_SUB,
+                text=text,
+                theme_text_color="Custom", text_color=T.TEXT_MAIN,
                 size_hint_y=None, height=dp(24),
             ))
 
-        chart = self.ids.weight_chart
-        chart.set_data(weights)
+        # сводка по истории (вместо убранного Canvas-графика)
         if len(weights) >= 2:
             kgs = [w["kg"] for w in weights]
-            first, last_kg = kgs[0], kgs[-1]
-            diff = last_kg - first
+            diff = kgs[-1] - kgs[0]
             diff_s = (f"+{diff:.2f}" if diff > 0
                       else f"{diff:.2f}")  # знак уже в числе
-            self.ids.l_chart_stats.text = (
-                f"мин {min(kgs):.2f} · макс {max(kgs):.2f} · "
-                f"разница {abs(max(kgs) - min(kgs)):.2f} кг · "
+            self.ids.l_weight_stats.text = (
+                f"Всего замеров: {len(kgs)} · мин {min(kgs):.2f} · "
+                f"макс {max(kgs):.2f} · разница "
+                f"{abs(max(kgs) - min(kgs)):.2f} кг · "
                 f"за период {diff_s} кг"
             )
+        elif len(weights) == 1:
+            self.ids.l_weight_stats.text = (
+                "Запишите вес ещё раз — появится сводка изменений")
         else:
-            self.ids.l_chart_stats.text = (
-                "График появится после двух замеров")
+            self.ids.l_weight_stats.text = ""
 
     def add_weight(self):
         s = self.ids.weight_input.text.strip().replace(",", ".")
@@ -996,8 +917,3 @@ class PetDetailScreen(AppMixin, MDScreen):
         )
         btn.bind(on_release=callback)
         return btn
-
-
-# kv использует WeightChart как вложенный виджет — имя должно быть
-# в Factory к моменту создания PetDetailScreen (урок FactoryException)
-Factory.register("WeightChart", cls=WeightChart)
