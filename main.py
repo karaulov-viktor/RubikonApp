@@ -33,6 +33,7 @@ from kivy.graphics import Color, RoundedRectangle
 from kivy.lang import Builder
 from kivy.metrics import dp
 from kivy.uix.label import Label
+import kivymd
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
 
@@ -61,6 +62,54 @@ from kivymd.uix.navigationbar.navigationbar import (
 )
 
 TASK_NAME = "RubikonAppReminder"
+
+
+def _patch_kivymd_fbo():
+    """Fbo(size=self.size) при нулевом размере виджета роняет слабые
+    GPU (FBO Incomplete attachment, 36054): GT 710, llvmpipe и т.д.
+    Нулевой размер бывает у карточек с adaptive_height в момент
+    создания (например, панель расчёта нормы кормления).
+
+    Правим на месте — так же починено в актуальном master KivyMD
+    (Fbo фиксированного размера 50x50). Заменяет старый внешний
+    fix_kivymd_fbo.py: патч применяется сам при каждом старте.
+    """
+    try:
+        from kivy.graphics import (
+            ClearBuffers as _CB,
+            ClearColor as _CC,
+            Color as _C,
+            Fbo as _F,
+            Rectangle as _R,
+        )
+        import kivymd.uix.behaviors.ripple_behavior as _rb
+
+        def _init_fbos(self):
+            """Тело оригинала, но Fbo фиксированного размера 50x50
+            (self.rect растягивается нормально, падает лишь создание
+            нулевого Fbo)."""
+            self._phase = 0.0
+            self.ripple_pos = (0, 0)
+            self.fbo = _F(size=[50, 50], group="m3_ripple_behavior")
+            self.set_shader(self.fbo)
+            with self.fbo:
+                _CC(0, 0, 0, 0)
+                _CB()
+                _C(1, 1, 1, 1)
+                self.rect = _R(pos=(0, 0), size=self.size)
+
+        patched = 0
+        for obj in list(vars(_rb).values()):
+            if isinstance(obj, type) and "init_fbos" in vars(obj):
+                obj.init_fbos = _init_fbos
+                patched += 1
+        if patched:
+            print(f"[RubikonApp] FBO-патч применён ({patched} класс(ов))")
+    except Exception as _e:
+        print(f"[RubikonApp] FBO-патч не применён: {_e}")
+
+
+_patch_kivymd_fbo()
 
 # экран -> подпись пункта меню; подэкраны наследуют раздел
 NAV_LABELS = {
@@ -120,7 +169,22 @@ class RubikonApp(MDApp):
         self.theme_cls.primary_palette = "Green"   # фирменный зелёный
         self.theme_cls.primary_hue = "800"         # тёмный, ближе к #177300
 
-        Window.clearcolor = T.BG
+        # БЕЛЫЙ фон окна — литералом, а не через T.BG: если у пользователя
+        # остался старый theme.py, окно всё равно будет белым.
+        Window.clearcolor = (1, 1, 1, 1)
+
+        # Самопроверка окружения (ответ на жалобу «экраны не белые»):
+        # в консоли должна быть строка с версией темы whitegreen-3.
+        print(f"[RubikonApp] KivyMD {getattr(kivymd, '__version__', '?')}"
+              f", тема {getattr(T, 'PALETTE_VERSION', 'НЕИЗВЕСТНА')}")
+        if getattr(T, "PALETTE_VERSION", "") != "whitegreen-3":
+            print("[RubikonApp] ВНИМАНИЕ: models/theme.py устарел —"
+                  " скопируйте файл из пакета v3, иначе цвета будут"
+                  " неправильными!")
+        if getattr(kivymd, "__version__", "2.0.0") != "2.0.0":
+            print("[RubikonApp] ВНИМАНИЕ: требуется KivyMD 2.0.0"
+                  " (pip install -r requirements.txt). На dev-версиях"
+                  " карточки могут рисоваться с тонировкой!")
 
         # --- БД: инициализация + миграция + бэкап при каждом старте ---
         db.init_db()

@@ -19,6 +19,11 @@ from kivy.utils import get_color_from_hex as _h
 BG = _h("#FFFFFF")            # фон экранов (белый — п.7 ТЗ)
 CARD = _h("#FFFFFF")          # карточки белые
 CARD_BORDER = _h("#E3EDE0")   # обводка карточек (лёгкий зелёный оттенок)
+#
+# ВАЖНО: если экраны выглядят НЕ белыми — у вас устаревший theme.py.
+# При старте main.py печатает в консоль строку
+#   [RubikonApp] тема whitegreen-3
+# Если версия другая (или её нет) — замените этот файл из пакета.
 
 # --- Фирменный зелёный ---
 GREEN = _h("#177300")         # акценты, заголовки, активные пункты меню
@@ -49,4 +54,4 @@ AMBER_BG = _h("#FFF6E8")
 AMBER_ICON = _h("#C0902E")
 AMBER_TEXT = _h("#8A6A33")
 
-PALETTE_VERSION = "whitegreen-2"
+PALETTE_VERSION = "whitegreen-3"

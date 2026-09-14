@@ -1,5 +1,15 @@
 #:import T models.theme
 
+# pet_detail.kv — личная страница питомца.
+#
+# Уроки прошлых пакетов:
+#  - все карточки: md_bg_color T.CARD + elevation 0 ЯВНО (у части
+#    установок KivyMD 2.0.1.dev0 карточки рисуются с тонировкой);
+#  - никаких фиксированных высот у многострочных label — высота
+#    привязана к texture_size (иначе текст наезжает на соседей);
+#  - формы: короткие подсказки + свой ряд, чтобы поля не сжимались
+#    и текст подсказок не вылезал в соседнее поле.
+
 <PetDetailScreen>:
     md_bg_color: T.BG
 
@@ -56,6 +66,7 @@
                     orientation: "vertical"
                     md_bg_color: T.CARD
                     line_color: T.CARD_BORDER
+                    elevation: 0
                     radius: [dp(16)]
                     padding: dp(16)
                     size_hint_x: 0.94
@@ -95,6 +106,7 @@
                 MDCard:
                     orientation: "horizontal"
                     md_bg_color: T.GREEN_SOFT
+                    elevation: 0
                     radius: [dp(16)]
                     padding: dp(14)
                     size_hint_x: 0.94
@@ -135,6 +147,7 @@
                     orientation: "vertical"
                     md_bg_color: T.CARD
                     line_color: T.CARD_BORDER
+                    elevation: 0
                     radius: [dp(16)]
                     padding: dp(14)
                     size_hint_x: 0.94
@@ -174,6 +187,7 @@
                     orientation: "vertical"
                     md_bg_color: T.CARD
                     line_color: T.CARD_BORDER
+                    elevation: 0
                     radius: [dp(16)]
                     padding: dp(14)
                     size_hint_x: 0.94
@@ -211,6 +225,7 @@
                     orientation: "vertical"
                     md_bg_color: T.CARD
                     line_color: T.CARD_BORDER
+                    elevation: 0
                     radius: [dp(16)]
                     padding: dp(14)
                     size_hint_x: 0.94
@@ -219,22 +234,15 @@
                     adaptive_height: True
                     spacing: dp(8)
 
-                    MDBoxLayout:
+                    MDLabel:
+                        text: "Лекарства"
+                        font_style: "Title"
+                        role: "small"
+                        bold: True
+                        theme_text_color: "Custom"
+                        text_color: T.GREEN
                         size_hint_y: None
-                        height: "34dp"
-
-                        MDLabel:
-                            text: "Лекарства"
-                            font_style: "Title"
-                            role: "small"
-                            bold: True
-                            theme_text_color: "Custom"
-                            text_color: T.GREEN
-
-                        MDIconButton:
-                            icon: "plus"
-                            theme_icon_color: "Custom"
-                            icon_color: T.GREEN
+                        height: "30dp"
 
                     MDBoxLayout:
                         id: meds_box
@@ -249,13 +257,13 @@
                         MDTextField:
                             id: med_title
                             mode: "filled"
-                            size_hint_x: 0.6
+                            size_hint_x: 0.65
                             MDTextFieldHintText:
-                                text: "Название лекарства"
+                                text: "Лекарство"
                         MDTextField:
                             id: med_time
                             mode: "filled"
-                            size_hint_x: 0.25
+                            size_hint_x: 0.3
                             MDTextFieldHintText:
                                 text: "09:30"
                         MDButton:
@@ -270,6 +278,7 @@
                     orientation: "vertical"
                     md_bg_color: T.CARD
                     line_color: T.CARD_BORDER
+                    elevation: 0
                     radius: [dp(16)]
                     padding: dp(14)
                     size_hint_x: 0.94
@@ -291,9 +300,15 @@
                             text_color: T.GREEN
 
                         MDIconButton:
-                            icon: "plus"
+                            icon: "calculator-variant-outline"
                             theme_icon_color: "Custom"
                             icon_color: T.GREEN
+                            on_release: root.toggle_nutr()
+
+                    MDBoxLayout:
+                        id: nutr_box
+                        orientation: "vertical"
+                        adaptive_height: True
 
                     MDBoxLayout:
                         id: feed_box
@@ -308,15 +323,15 @@
                         MDTextField:
                             id: feed_time
                             mode: "filled"
-                            size_hint_x: 0.25
+                            size_hint_x: 0.28
                             MDTextFieldHintText:
                                 text: "18:00"
                         MDTextField:
                             id: feed_note
                             mode: "filled"
-                            size_hint_x: 0.6
+                            size_hint_x: 0.62
                             MDTextFieldHintText:
-                                text: "Рацион / примечание"
+                                text: "Рацион"
                         MDButton:
                             style: "filled"
                             pos_hint: {"center_y": 0.5}
@@ -329,6 +344,7 @@
                     orientation: "vertical"
                     md_bg_color: T.CARD
                     line_color: T.CARD_BORDER
+                    elevation: 0
                     radius: [dp(16)]
                     padding: dp(14)
                     size_hint_x: 0.94
@@ -337,45 +353,66 @@
                     adaptive_height: True
                     spacing: dp(8)
 
-                    MDLabel:
-                        text: "Диета"
-                        font_style: "Title"
-                        role: "small"
-                        bold: True
-                        theme_text_color: "Custom"
-                        text_color: T.GREEN
+                    MDBoxLayout:
                         size_hint_y: None
-                        height: "30dp"
+                        height: "34dp"
+
+                        MDLabel:
+                            text: "Диета"
+                            font_style: "Title"
+                            role: "small"
+                            bold: True
+                            theme_text_color: "Custom"
+                            text_color: T.GREEN
+
+                        MDIconButton:
+                            icon: "lightbulb-on-outline"
+                            theme_icon_color: "Custom"
+                            icon_color: T.GREEN
+                            on_release: root.toggle_diet_reco()
+
+                    MDBoxLayout:
+                        id: diet_reco_box
+                        orientation: "vertical"
+                        adaptive_height: True
+                        spacing: dp(8)
 
                     MDBoxLayout:
                         id: diet_box
                         orientation: "vertical"
                         adaptive_height: True
 
+                    # форма: ряд 1 — название на всю ширину
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: "56dp"
+
+                        MDTextField:
+                            id: diet_title
+                            mode: "filled"
+                            size_hint_x: 1
+                            MDTextFieldHintText:
+                                text: "Название рациона"
+
+                    # форма: ряд 2 — срок, время, кнопка
                     MDBoxLayout:
                         size_hint_y: None
                         height: "56dp"
                         spacing: dp(8)
 
                         MDTextField:
-                            id: diet_title
-                            mode: "filled"
-                            size_hint_x: 0.4
-                            MDTextFieldHintText:
-                                text: "Название рациона"
-                        MDTextField:
                             id: diet_days
                             mode: "filled"
-                            size_hint_x: 0.2
+                            size_hint_x: 0.28
                             input_filter: "int"
                             MDTextFieldHintText:
                                 text: "Дней"
                         MDTextField:
                             id: diet_times
                             mode: "filled"
-                            size_hint_x: 0.35
+                            size_hint_x: 0.55
                             MDTextFieldHintText:
-                                text: "08:00, 19:00"
+                                text: "08:00, 20:00"
                         MDButton:
                             style: "filled"
                             pos_hint: {"center_y": 0.5}
@@ -388,6 +425,7 @@
                     orientation: "vertical"
                     md_bg_color: T.CARD
                     line_color: T.CARD_BORDER
+                    elevation: 0
                     radius: [dp(16)]
                     padding: dp(14)
                     size_hint_x: 0.94
@@ -409,23 +447,27 @@
                     MDLabel:
                         id: l_last_weight
                         text: "Замеров пока нет"
+                        font_size: "13sp"
                         theme_text_color: "Custom"
                         text_color: T.TEXT_MAIN
                         size_hint_y: None
-                        height: "24dp"
+                        height: max(dp(22), self.texture_size[1])
+                        text_size: (self.width - dp(8), None)
 
                     WeightChart:
                         id: weight_chart
                         size_hint_y: None
-                        height: "120dp"
+                        height: "150dp"
 
                     MDLabel:
                         id: l_chart_stats
                         text: ""
+                        font_size: "12sp"
                         theme_text_color: "Custom"
                         text_color: T.TEXT_SUB
                         size_hint_y: None
-                        height: "20dp"
+                        height: max(dp(18), self.texture_size[1])
+                        text_size: (self.width - dp(8), None)
 
                     MDBoxLayout:
                         id: weights_list
@@ -440,11 +482,13 @@
                         MDTextField:
                             id: weight_input
                             mode: "filled"
-                            size_hint_x: 0.5
+                            size_hint_x: 0.55
+                            input_filter: "float"
                             MDTextFieldHintText:
                                 text: "Вес сегодня, кг"
                         MDButton:
                             style: "filled"
+                            size_hint_x: 0.4
                             pos_hint: {"center_y": 0.5}
                             on_release: root.add_weight()
                             MDButtonText:

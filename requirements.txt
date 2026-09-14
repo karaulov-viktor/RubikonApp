@@ -1,8 +1,12 @@
 # RubikonApp — зависимости
 # Установка: pip install -r requirements.txt
 # (для Windows ставьте в тот же python, что запускает приложение:
-#  D:\PYTHON\python.exe -m pip install -r requirements.txt)
+#  venv\Scripts\python.exe -m pip install -r requirements.txt)
 
+# ВАЖНО (v3): в requirements строго зафиксирован kivymd==2.0.0.
+# Если у вас стоит 2.0.1.dev0 (проверка: pip show kivymd) — ОБЯЗАТЕЛЬНО
+# выполните установку из этого файла: на dev-версиях карточки могут
+# рисоваться с тонировкой вместо белого.
 kivy==2.3.1
 kivymd==2.0.0
 

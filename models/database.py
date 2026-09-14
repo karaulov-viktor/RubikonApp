@@ -126,7 +126,8 @@ CREATE TABLE IF NOT EXISTS feedings (
     id     INTEGER PRIMARY KEY AUTOINCREMENT,
     pet_id INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
     time   TEXT NOT NULL,
-    note   TEXT DEFAULT ''
+    note   TEXT DEFAULT '',
+    grams  REAL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS diets (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -152,6 +153,18 @@ PET_COLUMNS_UNION = {
     "weight": "REAL",
     "history": "TEXT DEFAULT ''",
     "icon": "TEXT DEFAULT 'paw'",
+}
+
+# Спринт «Кормление и диеты»: порции в расписании и цели диет.
+# Свежим базам эти колонки даёт CREATE TABLE, существующим —
+# _ensure_columns() через ALTER TABLE (тот же урок, что с birth_date).
+FEEDING_COLUMNS_UNION = {
+    "grams": "REAL DEFAULT 0",          # порция, г (0 — без нормы)
+}
+DIET_COLUMNS_UNION = {
+    "goal": "TEXT DEFAULT ''",           # тип рациона (weight_loss/...)
+    "kcal": "INTEGER DEFAULT 0",         # целевая норма, ккал/сутки
+    "target_weight": "REAL DEFAULT 0",   # целевой вес, кг (0 — нет)
 }
 
 
@@ -209,6 +222,8 @@ def init_db():
         conn.executescript(SCHEMA_OLD)
         conn.executescript(SCHEMA_NEW)
         _migrate_pets(conn)
+        _ensure_columns(conn, "feedings", FEEDING_COLUMNS_UNION)
+        _ensure_columns(conn, "diets", DIET_COLUMNS_UNION)
         conn.commit()
     finally:
         conn.close()
@@ -823,15 +838,40 @@ def delete_med(med_id: int):
 
 
 # ------------------------------------------------------------------ feedings
-def add_feeding(pet_id: int, time_hhmm: str, note: str = "") -> int:
+def add_feeding(pet_id: int, time_hhmm: str, note: str = "",
+                grams: float = 0.0) -> int:
     conn = get_conn()
     try:
         cur = conn.execute(
-            "INSERT INTO feedings (pet_id, time, note) VALUES (?, ?, ?)",
-            (pet_id, time_hhmm.strip(), note.strip()),
+            "INSERT INTO feedings (pet_id, time, note, grams) "
+            "VALUES (?, ?, ?, ?)",
+            (pet_id, time_hhmm.strip(), note.strip(),
+             round(float(grams or 0), 1)),
         )
         conn.commit()
         return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def replace_feedings(pet_id: int, rows: list[tuple]) -> int:
+    """Замена всего расписания кормления одним расчётом нормы.
+
+    rows = [(time, grams, note), ...]. Один conn = одна транзакция.
+    Возвращает число добавленных строк.
+    """
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM feedings WHERE pet_id=?", (pet_id,))
+        for time_hhmm, grams, note in rows:
+            conn.execute(
+                "INSERT INTO feedings (pet_id, time, note, grams) "
+                "VALUES (?, ?, ?, ?)",
+                (pet_id, str(time_hhmm).strip(), str(note or "").strip(),
+                 round(float(grams or 0), 1)),
+            )
+        conn.commit()
+        return len(rows)
     finally:
         conn.close()
 
@@ -858,7 +898,9 @@ def delete_feeding(feeding_id: int):
 
 
 # ------------------------------------------------------------------ diets
-def add_diet(pet_id: int, title: str, start_date: str, days: int) -> int:
+def add_diet(pet_id: int, title: str, start_date: str, days: int,
+             goal: str = "", kcal: int = 0,
+             target_weight: float = 0.0) -> int:
     conn = get_conn()
     try:
         # у питомца одна активная диета
@@ -867,9 +909,11 @@ def add_diet(pet_id: int, title: str, start_date: str, days: int) -> int:
             (pet_id,),
         )
         cur = conn.execute(
-            "INSERT INTO diets (pet_id, title, start_date, days) "
-            "VALUES (?, ?, ?, ?)",
-            (pet_id, title.strip(), start_date, int(days)),
+            "INSERT INTO diets (pet_id, title, start_date, days, "
+            "goal, kcal, target_weight) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (pet_id, title.strip(), start_date, int(days),
+             str(goal or ""), int(kcal or 0),
+             round(float(target_weight or 0), 2)),
         )
         conn.commit()
         return cur.lastrowid

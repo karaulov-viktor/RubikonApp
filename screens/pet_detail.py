@@ -2,35 +2,48 @@
 """Личная страница питомца.
 
 Сверху вниз:
-  - аватар НА ВСЮ ШИРИНУ экрана (260dp) + кнопка назад
+  - аватар НА ВСЮ ШИРИНУ экрана (260dp) + кнопки назад/правка/удаление
   - карточка информации: имя / вид / порода · возраст · дата рождения
-  - Галерея фото (плитки 96dp, добавление, удаление)
-  - Галерея видео (инлайн-плеер как в Instagram, VideoPlayer+ffpyplayer)
-  - Лекарства (список + добавление)  -> уведомления по времени
-  - Кормление (расписание + добавление) -> уведомления по времени
-  - Диета (активная карточка с прогрессом ИЛИ форма создания;
-    в последний день — предложение взвесить питомца)
-  - Вес (Canvas-график динамики + список + запись замера)
+  - Лечение и назначения (старый функционал, тап -> экран)
+  - Галерея фото (плитки 96dp) и видео (инлайн-плеер)
+  - Лекарства (список + добавление) -> уведомления по времени
+  - Кормление: РАСЧЁТ НОРМЫ по виду/весу/возрасту (RER/MER, WSAVA),
+    расписание с порциями в граммах, ручное добавление
+  - Диета: ПОДБОР рациона по профилю (возраст, стерилизация, тренд
+    веса), активная диета с целью и калорийностью, ручная форма
+  - Вес: Canvas-график динамики + список замеров + запись
 
 Все списки строятся кодом; kv держит каркас и заголовки секций.
+
+Уроки прошлых пакетов (учтены):
+  - MDIcon в kivymd.uix.label, FitImage в kivymd.uix.fitimage (2.0);
+  - self.app недоступен без AppMixin (screens/__init__.py);
+  - WeightChart нужно регистрировать в Factory;
+  - фиксированная высота многострочных label = наложения текста
+    (теперь авто-высота по texture_size);
+  - юникод-стрелки ↑/↓ не рендерятся Roboto на Windows -> слова.
 """
 import datetime as _dt
 
-from kivy.metrics import dp
+from kivy.clock import Clock
+from kivy.core.text import Label as CoreLabel
+from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.videoplayer import VideoPlayer
 from kivy.uix.widget import Widget
-from kivy.graphics import Color, Ellipse, Line
+from kivy.graphics import (Color, Ellipse, Line, Rectangle,
+                           RoundedRectangle)
 from kivymd.uix.button import MDButton, MDButtonText, MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.fitimage import FitImage
-from kivymd.uix.label import MDLabel
+from kivy.factory import Factory
+from kivymd.uix.label import MDLabel, MDIcon
 from kivymd.uix.progressindicator import MDLinearProgressIndicator
 from kivymd.uix.screen import MDScreen
-
-from kivy.factory import Factory
+from kivymd.uix.textfield import MDTextField, MDTextFieldHintText
 
 from models import database as db
+from models import nutrition as nutr
 from models import theme as T
 from models.age_utils import fmt_display, format_age, parse_date
 from models.image_utils import (
@@ -50,49 +63,149 @@ except Exception:
     HAS_FFPY = False
 
 
+def _esc(s: str) -> str:
+    """Квадратные скобки в пользовательском тексте ломают markup."""
+    return str(s or "").replace("[", "(")
+
+
+def _auto_label(text: str = "", color=None, font_size: str = "13sp",
+                bold: bool = False, halign: str = "left",
+                wrap_width=dp(290), wrap=None) -> MDLabel:
+    """MDLabel с АВТО-высотой по фактическому размеру текста.
+
+    Урок v2 (наложения): фиксированная высота 40dp у трёхстрочного
+    текста рисует строки поверх соседних виджетов. Здесь высота
+    подтягивается к texture_size после компоновки.
+    """
+    if wrap is not None:
+        wrap_width = wrap
+    lbl = MDLabel(
+        text=text, markup=bold, halign=halign,
+        theme_text_color="Custom", text_color=color or T.TEXT_MAIN,
+        font_size=font_size, size_hint_y=None, height=dp(20),
+    )
+    lbl.text_size = (wrap_width, None)
+    lbl.bind(texture_size=lambda inst, sz: setattr(
+        inst, "height", max(dp(18), sz[1])))
+    return lbl
+
+
+def _field(hint: str, width_hint: float, cb=None) -> MDTextField:
+    """MDTextField с подсказкой (заполненный стиль), как в kv."""
+    tf = MDTextField(mode="filled", size_hint_x=width_hint)
+    tf.add_widget(MDTextFieldHintText(text=hint))
+    if cb is not None:
+        tf.bind(text=cb)
+    return tf
 
 
 class WeightChart(Widget):
-    """Самодельный Canvas-график веса: линия + точки. Без библиотек."""
+    """Canvas-график веса: белая подложка, сетка, линия, точки.
+
+    Почему в v2 график не рисовался: set_data() уходил в ранний выход
+    при width<50dp (виджет ещё не уложен), а повторного size-события
+    уже не приходило. Теперь перерисовка идёт и по size, и по pos,
+    плюс отложенный вызов через Clock — после прохода лэйаута.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._weights = []
-        # при первом рендере width ещё 0 — перерисовка после лэйаута
-        self.bind(size=self._redraw)
+        self.bind(size=self._on_layout, pos=self._on_layout)
 
-    def _redraw(self, *args):
-        self.set_data(self._weights)
+    def _on_layout(self, *args):
+        Clock.schedule_once(lambda dt: self._draw(), 0)
 
     def set_data(self, weights: list):
-        self._weights = weights
+        self._weights = list(weights or [])
+        Clock.schedule_once(lambda dt: self._draw(), 0)
+
+    def _hint_texture(self, text: str):
+        sub = T.TEXT_SUB
+        lbl = CoreLabel(text=text, font_size=sp(13),
+                        color=(sub[0], sub[1], sub[2], 1))
+        lbl.refresh()
+        return lbl.texture
+
+    def _draw(self, *args):
         self.canvas.clear()
-        if len(weights) < 2 or self.width < dp(50):
-            return
-        kgs = [w["kg"] for w in weights]
-        n = len(kgs)
-        kmin, kmax = min(kgs), max(kgs)
-        if kmax - kmin < 1e-9:
-            kmax = kmin + 1
-        pad_x, pad_top, pad_bot = dp(14), dp(10), dp(10)
-        step_x = (self.width - 2 * pad_x) / (n - 1)
-        pts = []
-        dots = []
-        for i, kg in enumerate(kgs):
-            x = pad_x + step_x * i
-            y = pad_bot + (self.height - pad_top - pad_bot) * \
-                (kg - kmin) / (kmax - kmin)
-            pts += [x, y]
-            dots.append((x, y))
+        w, h = self.width, self.height
+        if w < dp(40) or h < dp(30):
+            return  # ещё не уложен — придёт событие size/pos
+
+        pad_l, pad_r = dp(16), dp(16)
+        pad_t, pad_b = dp(12), dp(14)
+        cw, ch = w - pad_l - pad_r, h - pad_t - pad_b
+
         with self.canvas:
+            # фон и рамка (белая карточка — иначе прозрачность шоколадом)
+            Color(1, 1, 1, 1)
+            RoundedRectangle(pos=self.pos, size=self.size,
+                             radius=[dp(10)])
             Color(*T.CARD_BORDER)
-            Line(points=[pad_x, pad_bot,
-                         self.width - pad_x, pad_bot], width=1)
+            Line(rounded_rectangle=[self.x, self.y, self.width,
+                                    self.height, dp(10)], width=1)
+
+            kgs = []
+            for x in self._weights:
+                try:
+                    kgs.append(float(x["kg"]))
+                except (TypeError, ValueError, KeyError):
+                    continue
+
+            if not kgs:
+                tex = self._hint_texture(
+                    "Запишите вес дважды — здесь появится график")
+                self._draw_hint(tex)
+                return
+
+            n = len(kgs)
+            kmin, kmax = min(kgs), max(kgs)
+            span = kmax - kmin
+            if span < 1e-9:
+                kmin -= 0.5
+                kmax += 0.5
+            else:
+                kmin -= span * 0.12   # запас сверху/снизу, чтобы
+                kmax += span * 0.12   # точки не липли к краям
+
+            # сетка
+            Color(*T.CARD_BORDER)
+            Line(points=[pad_l, pad_t + ch / 2,
+                         pad_l + cw, pad_t + ch / 2], width=1)
+            Line(points=[pad_l, pad_t, pad_l + cw, pad_t], width=1)
+
+            if n == 1:
+                cx, cy = pad_l + cw / 2, pad_t + ch / 2
+                Color(*T.GREEN)
+                Ellipse(pos=(cx - dp(5), cy - dp(5)), size=(dp(10), dp(10)))
+                return
+
+            step = cw / (n - 1)
+            pts = []
+            for i, kg in enumerate(kgs):
+                pts.append(pad_l + step * i)
+                pts.append(pad_t + ch * (kg - kmin) / (kmax - kmin))
+
             Color(*T.GREEN)
-            Line(points=pts, width=dp(1.6))
-            Color(*T.GREEN_DARK)
-            for (x, y) in dots:
-                Ellipse(pos=(x - dp(3), y - dp(3)), size=(dp(6), dp(6)))
+            Line(points=pts, width=dp(2))
+            for i in range(n):
+                x, y = pts[2 * i], pts[2 * i + 1]
+                Color(1, 1, 1, 1)   # белая обводка точки
+                Ellipse(pos=(x - dp(5), y - dp(5)), size=(dp(10), dp(10)))
+                Color(*T.GREEN_DARK)
+                Ellipse(pos=(x - dp(3.5), y - dp(3.5)),
+                        size=(dp(7), dp(7)))
+
+    def _draw_hint(self, texture):
+        if not texture:
+            return
+        tx = self.center_x - texture.width / 2
+        ty = self.center_y - texture.height / 2
+        self.canvas.add(Color(1, 1, 1, 1))
+        self.canvas.add(
+            Rectangle(texture=texture, pos=(tx, ty),
+                      size=(texture.width, texture.height)))
 
 
 class PetDetailScreen(AppMixin, MDScreen):
@@ -100,10 +213,28 @@ class PetDetailScreen(AppMixin, MDScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.pet_id = None
+        # --- состояние панели расчёта нормы ---
+        self._nutr_open = False
+        self._nutr_ster = False
+        self._nutr_act = "средняя"
+        self._nutr_weight_s = ""   # текст поля «вес»
+        self._nutr_kcal_s = ""     # текст поля «ккал/100 г»
+        self._nutr_result_lbl = None
+        self._last_plan = None
+        # --- состояние панели подбора диеты ---
+        self._diet_reco_open = False
+        self._pending_goal = None
 
     # ================================================== открытие экрана
     def open_pet(self, pet_id: int):
         self.pet_id = pet_id
+        self._nutr_open = False
+        self._nutr_weight_s = ""
+        self._nutr_kcal_s = ""
+        self._diet_reco_open = False
+        self._pending_goal = None
+        self._nutr_ster = self._saved_ster()
+        self._nutr_act = self._saved_activity()
         self.refresh_all()
         self.app.go_to("pet_detail")
 
@@ -132,7 +263,9 @@ class PetDetailScreen(AppMixin, MDScreen):
         self._build_videos()
         self._build_meds()
         self._build_feedings()
+        self._build_nutr_panel()
         self._build_diet()
+        self._build_diet_reco()
         self._build_weights()
 
     def back(self):
@@ -313,7 +446,7 @@ class PetDetailScreen(AppMixin, MDScreen):
         for m in meds:
             row = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(6))
             row.add_widget(MDLabel(
-                text=f"[b]{m['time']}[/b]  {m['title']}",
+                text=f"[b]{m['time']}[/b]  {_esc(m['title'])}",
                 markup=True, theme_text_color="Custom",
                 text_color=T.TEXT_MAIN, valign="middle",
                 text_size=(self.width - dp(70), None),
@@ -351,12 +484,20 @@ class PetDetailScreen(AppMixin, MDScreen):
         items = db.get_feedings(self.pet_id)
         if not items:
             box.add_widget(self._hint(
-                "Расписания кормления нет — добавьте время и рацион"
+                "Расписания кормления нет. Нажмите иконку калькулятора,"
+                " чтобы рассчитать норму, или добавьте время вручную"
             ))
         for f in items:
             row = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(6))
+            text = f"[b]{f['time']}[/b]"
+            grams = f.get("grams") or 0
+            if grams:
+                text += f"  ·  [b]{grams:.0f} г[/b]"
+            note = _esc(f.get("note") or "")
+            if note:
+                text += f"  ·  {note}"
             row.add_widget(MDLabel(
-                text=f"[b]{f['time']}[/b]  {f['note'] or 'кормление'}",
+                text=text,
                 markup=True, theme_text_color="Custom",
                 text_color=T.TEXT_MAIN, valign="middle",
                 text_size=(self.width - dp(70), None),
@@ -387,15 +528,278 @@ class PetDetailScreen(AppMixin, MDScreen):
         db.delete_feeding(feeding_id)
         self._build_feedings()
 
+    # ===================================== кормление: расчёт нормы
+    def _saved_nutr(self) -> tuple:
+        """Сохранённые параметры расчёта: 'ster|activity|kcal'."""
+        raw = db.get_setting(f"nutr:{self.pet_id}", "") or ""
+        parts = raw.split("|")
+        parts = (parts + ["", "", ""])[:3]
+        ster = parts[0] == "1" if parts[0] else False
+        act = parts[1] if parts[1] in nutr.ACTIVITY_LEVELS else "средняя"
+        return ster, act, parts[2]
+
+    def _saved_ster(self) -> bool:
+        return self._saved_nutr()[0]
+
+    def _saved_activity(self) -> str:
+        return self._saved_nutr()[1]
+
+    def _pet_context(self) -> dict:
+        """Вид, дата рождения, последний вес — общий контекст расчётов."""
+        pet = db.get_pet(self.pet_id) or {}
+        last = db.get_last_weight(self.pet_id)
+        weight = None
+        if last:
+            weight = float(last["kg"])
+        elif pet.get("weight"):
+            try:
+                weight = float(pet["weight"])
+            except (TypeError, ValueError):
+                weight = None
+        return {
+            "species": (pet.get("species") or "").strip() or "Кошка",
+            "birth": pet.get("birth_date") or "",
+            "weight": weight,
+            "name": pet.get("name") or "",
+        }
+
+    def toggle_nutr(self):
+        self._nutr_open = not self._nutr_open
+        self._build_nutr_panel()
+
+    def _on_nutr_text(self, instance, value):
+        """Поля панели меняются -> сохранить и пересчитать результат."""
+        if instance is getattr(self, "_nutr_w_field", None):
+            self._nutr_weight_s = value
+        elif instance is getattr(self, "_nutr_k_field", None):
+            self._nutr_kcal_s = value
+        self.refresh_nutr_result()
+
+    @staticmethod
+    def _parse_float(s) -> float | None:
+        try:
+            v = float(str(s).strip().replace(",", "."))
+        except (TypeError, ValueError):
+            return None
+        return v if v > 0 else None
+
+    def _current_plan(self):
+        """Расчёт нормы по текущим значениям полей (или None)."""
+        ctx = self._pet_context()
+        weight = self._parse_float(self._nutr_weight_s) or ctx["weight"]
+        if not weight:
+            return None
+        food_kcal = self._parse_float(self._nutr_kcal_s) \
+            or nutr.DEFAULT_FOOD_KCAL
+        # если активна диета на снижение — считаем по её коэффициенту
+        diet = db.get_active_diet(self.pet_id)
+        goal = (diet or {}).get("goal") or "normal"
+        return nutr.calc_daily(
+            ctx["species"], weight, ctx["birth"],
+            self._nutr_ster, self._nutr_act, food_kcal, goal=goal,
+        )
+
+    def _build_nutr_panel(self):
+        box = self.ids.nutr_box
+        box.clear_widgets()
+        self._nutr_result_lbl = None
+        if not self._nutr_open:
+            return
+        _, _, kcal_saved = self._saved_nutr()
+        if not self._nutr_weight_s:
+            ctx = self._pet_context()
+            if ctx["weight"]:
+                self._nutr_weight_s = f"{ctx['weight']:.2f}".rstrip("0") \
+                    .rstrip(".")
+        if not self._nutr_kcal_s:
+            self._nutr_kcal_s = kcal_saved or str(nutr.DEFAULT_FOOD_KCAL)
+
+        ctx = self._pet_context()
+        stage = nutr.life_stage(ctx["species"], ctx["birth"])
+        who = f"{ctx['species']} · {stage['title']}"
+        if ctx["weight"]:
+            who += f" · {ctx['weight']:.2f} кг"
+
+        panel = MDCard(
+            orientation="vertical", md_bg_color=T.GREEN_SOFT,
+            radius=[dp(12)], padding=dp(12), spacing=dp(8),
+            adaptive_height=True,
+        )
+        panel.add_widget(_auto_label(
+            "[b]Расчёт суточной нормы[/b]", T.GREEN, "14sp", wrap=dp(280)))
+        panel.add_widget(_auto_label(
+            who + " · метод RER/MER (WSAVA)", T.TEXT_SUB, "12sp",
+            wrap=dp(280)))
+
+        row = BoxLayout(size_hint_y=None, height=dp(56), spacing=dp(8))
+        self._nutr_w_field = _field("Вес, кг", 0.5, self._on_nutr_text)
+        self._nutr_w_field.text = self._nutr_weight_s
+        self._nutr_k_field = _field("Корм, ккал/100 г", 0.5,
+                                    self._on_nutr_text)
+        self._nutr_k_field.text = self._nutr_kcal_s
+        row.add_widget(self._nutr_w_field)
+        row.add_widget(self._nutr_k_field)
+        panel.add_widget(row)
+
+        tog = BoxLayout(size_hint_y=None, height=dp(38), spacing=dp(8))
+        tog.add_widget(self._toggle_btn(
+            f"Стерилизован: {'да' if self._nutr_ster else 'нет'}",
+            self._nutr_ster, self._toggle_ster))
+        tog.add_widget(self._toggle_btn(
+            f"Активность: {self._nutr_act}",
+            self._nutr_act != "низкая", self._cycle_activity))
+        panel.add_widget(tog)
+
+        self._nutr_result_lbl = _auto_label("", T.TEXT_MAIN, "13sp",
+                                            wrap=dp(280))
+        panel.add_widget(self._nutr_result_lbl)
+
+        apply_btn = MDButton(style="filled", size_hint_y=None,
+                             height=dp(40))
+        apply_btn.add_widget(MDButtonText(
+            text="Применить к расписанию кормлений"))
+        apply_btn.bind(on_release=lambda *a: self.apply_nutr_plan())
+        panel.add_widget(apply_btn)
+        panel.add_widget(_auto_label(
+            "Заменит текущее расписание кормлений (время + порции)",
+            T.TEXT_SUB, "11sp", wrap=dp(280)))
+
+        box.add_widget(panel)
+        self.refresh_nutr_result()
+
+    def _toggle_btn(self, text: str, active: bool, cb) -> MDButton:
+        btn = MDButton(
+            style="outlined", size_hint_y=None, height=dp(38),
+            theme_bg_color="Custom",
+            md_bg_color=T.GREEN_SOFT if active else T.WHITE,
+            theme_line_color="Custom",
+            line_color=T.GREEN,
+        )
+        btn.add_widget(MDButtonText(
+            text=text, theme_text_color="Custom",
+            text_color=T.GREEN if active else T.TEXT_SUB,
+            font_size="12sp"))
+        btn.bind(on_release=lambda *a: cb())
+        return btn
+
+    def _toggle_ster(self):
+        self._nutr_ster = not self._nutr_ster
+        self._build_nutr_panel()
+
+    def _cycle_activity(self):
+        i = nutr.ACTIVITY_LEVELS.index(self._nutr_act)
+        self._nutr_act = nutr.ACTIVITY_LEVELS[
+            (i + 1) % len(nutr.ACTIVITY_LEVELS)]
+        self._build_nutr_panel()
+
+    def refresh_nutr_result(self, *args):
+        if not self._nutr_open or self._nutr_result_lbl is None:
+            return
+        plan = self._current_plan()
+        self._last_plan = plan
+        if plan is None:
+            self._nutr_result_lbl.text = (
+                "Укажите вес питомца (или запишите замер веса) — "
+                "и здесь появится норма по формуле RER/MER")
+            return
+        self._nutr_result_lbl.text = "\n".join(plan["lines"])
+
+    def apply_nutr_plan(self):
+        plan = self._current_plan()
+        if plan is None:
+            self.app.show_toast("Сначала укажите вес питомца")
+            return
+        if not plan["grams_meal"]:
+            self.app.show_toast("Укажите калорийность корма, ккал/100 г")
+            return
+        note = f"норма {plan['grams_day']} г/сутки"
+        rows = [(t, plan["grams_meal"], note) for t in plan["times"]]
+        db.replace_feedings(self.pet_id, rows)
+        db.set_setting(
+            f"nutr:{self.pet_id}",
+            f"{int(self._nutr_ster)}|{self._nutr_act}|{self._nutr_kcal_s}",
+        )
+        self._nutr_open = False
+        self._build_nutr_panel()
+        self._build_feedings()
+        self.app.show_toast(
+            f"Готово: {plan['meals']} кормления по {plan['grams_meal']} г")
+
     # ================================================== диета
+    def toggle_diet_reco(self):
+        self._diet_reco_open = not self._diet_reco_open
+        self._build_diet_reco()
+
+    def _build_diet_reco(self):
+        box = self.ids.diet_reco_box
+        box.clear_widgets()
+        if not self._diet_reco_open:
+            return
+        ctx = self._pet_context()
+        ws = db.get_weights(self.pet_id)
+        trend = (ws[-1]["kg"] - ws[-2]["kg"]) if len(ws) >= 2 else 0.0
+        weight = ctx["weight"]
+        opts = nutr.diet_options(
+            ctx["species"], weight, ctx["birth"], self._nutr_ster, trend)
+
+        box.add_widget(_auto_label(
+            "Подобрано по виду, возрасту, стерилизации и динамике веса:",
+            T.TEXT_SUB, "12sp", wrap=dp(280)))
+        for opt in opts:
+            card = MDCard(
+                orientation="vertical", md_bg_color=T.CARD,
+                line_color=T.CARD_BORDER, radius=[dp(12)],
+                padding=dp(10), spacing=dp(4), adaptive_height=True,
+            )
+            card.add_widget(_auto_label(
+                f"[b]{opt['title']}[/b]", T.GREEN, "14sp", wrap=dp(270)))
+            card.add_widget(_auto_label(
+                opt["why"], T.TEXT_SUB, "12sp", wrap=dp(270)))
+            if weight:
+                plan = nutr.calc_daily(
+                    ctx["species"], weight, ctx["birth"],
+                    self._nutr_ster, self._nutr_act, goal=opt["goal"])
+                meta = f"~{plan['kcal']} ккал/день · {opt['days']} дн."
+            else:
+                meta = f"{opt['days']} дн. · запишите вес для расчёта ккал"
+            card.add_widget(_auto_label(meta, T.TEXT_MAIN, "12sp",
+                                        wrap=dp(270)))
+            row = BoxLayout(size_hint_y=None, height=dp(34))
+            btn = MDButton(style="filled", size_hint_x=None,
+                           width=dp(110), pos_hint={"x": 0})
+            btn.add_widget(MDButtonText(text="Начать", font_size="13sp"))
+            btn.bind(on_release=lambda *a, o=dict(opt):
+                     self.start_diet_from_reco(o))
+            row.add_widget(btn)
+            card.add_widget(row)
+            box.add_widget(card)
+        box.add_widget(_auto_label(
+            "«Начать» подставит параметры в форму ниже — останется "
+            "проверить и нажать «Начать»", T.TEXT_SUB, "11sp",
+            wrap=dp(280)))
+
+    def start_diet_from_reco(self, opt: dict):
+        """Кнопка «Начать» у варианта диеты: подставить в форму."""
+        ctx = self._pet_context()
+        self._pending_goal = opt
+        self.ids.diet_title.text = opt["title"]
+        self.ids.diet_days.text = str(opt["days"])
+        meals = nutr.meals_per_day(
+            ctx["species"], nutr.age_months(ctx["birth"]))
+        self.ids.diet_times.text = ", ".join(nutr.meal_times(meals))
+        self._diet_reco_open = False
+        self._build_diet_reco()
+        self.app.show_toast(
+            "Параметры подставлены — проверьте форму и нажмите «Начать»")
+
     def _build_diet(self):
         box = self.ids.diet_box
         box.clear_widgets()
         diet = db.get_active_diet(self.pet_id)
         if not diet:
             box.add_widget(self._hint(
-                "Активной диеты нет. Создайте: название рациона, срок в днях"
-                " и время кормления — приложение напомнит о каждом приёме"
+                "Активной диеты нет. Нажмите иконку лампочки, чтобы "
+                "подобрать рацион, или создайте свой ниже"
             ))
             return
 
@@ -407,32 +811,48 @@ class PetDetailScreen(AppMixin, MDScreen):
 
         card = MDCard(
             orientation="vertical", md_bg_color=T.GREEN_SOFT,
-            radius=[dp(14)], padding=dp(14), size_hint_y=None,
-            height=dp(150), spacing=dp(4),
+            radius=[dp(14)], padding=dp(12), spacing=dp(4),
+            adaptive_height=True,
         )
-        card.add_widget(MDLabel(
-            text=f"[b]Диета «{diet['title']}»[/b]", markup=True,
-            theme_text_color="Custom", text_color=T.GREEN,
-            size_hint_y=None, height=dp(26),
-        ))
-        card.add_widget(MDLabel(
-            text=f"Старт {fmt_display(diet['start_date'])} · "
-                 f"{total} дн. · день {min(day_no, total)} из {total}",
-            theme_text_color="Custom", text_color=T.TEXT_SUB,
-            size_hint_y=None, height=dp(22),
-        ))
-        progress = MDLinearProgressIndicator(
+        card.add_widget(_auto_label(
+            f"[b]Диета «{_esc(diet['title'])}»[/b]", T.GREEN, "14sp",
+            wrap=dp(270)))
+        lines = [
+            f"Старт {fmt_display(diet['start_date'])} · {total} дн. · "
+            f"день {min(day_no, total)} из {total}"
+        ]
+        if diet.get("kcal"):
+            lines.append(f"Норма ~{diet['kcal']} ккал/день")
+        if diet.get("target_weight"):
+            ctx = self._pet_context()
+            now_s = (f"{ctx['weight']:.2f}" if ctx["weight"] else "?")
+            lines.append(
+                f"Цель: {diet['target_weight']:.1f} кг (сейчас {now_s})")
+        goal_txt = nutr.goal_factor(diet.get("goal") or "")
+        if goal_txt and goal_txt != "normal":
+            lines.append(f"Тип: {goal_txt}")
+        card.add_widget(_auto_label("\n".join(lines), T.TEXT_SUB, "12sp",
+                                    wrap=dp(270)))
+        card.add_widget(MDLinearProgressIndicator(
             value=min(100.0, max(0.0, day_no / total * 100.0)),
             size_hint_y=None, height=dp(6), radius=[dp(3)],
-        )
-        card.add_widget(progress)
+        ))
 
+        row = BoxLayout(size_hint_y=None, height=dp(36))
         if finished:
-            btn = MDButton(style="filled", size_hint_y=None, height=dp(40))
+            btn = MDButton(style="filled", size_hint_x=None, width=dp(250))
             btn.add_widget(MDButtonText(
-                text="Диета завершена — записать вес питомца"))
+                text="Диета завершена — записать вес"))
             btn.bind(on_release=lambda *a: self.focus_weight())
-            card.add_widget(btn)
+            row.add_widget(btn)
+        else:
+            btn = MDButton(style="text", size_hint_x=None, width=dp(140),
+                           pos_hint={"right": 1})
+            btn.add_widget(MDButtonText(
+                text="Завершить досрочно", font_size="12sp"))
+            btn.bind(on_release=lambda *a: self.finish_diet())
+            row.add_widget(btn)
+        card.add_widget(row)
         box.add_widget(card)
 
     def create_diet(self):
@@ -442,9 +862,25 @@ class PetDetailScreen(AppMixin, MDScreen):
         if not title or not days_s.isdigit() or not (1 <= int(days_s) <= 365):
             self.app.show_toast("Укажите название и срок диеты (1–365 дней)")
             return
+        goal = (self._pending_goal or {}).get("goal", "")
+        ctx = self._pet_context()
+        weight = ctx["weight"]
+        food_kcal = self._parse_float(self._nutr_kcal_s) \
+            or nutr.DEFAULT_FOOD_KCAL
+
+        plan = None
+        if weight:
+            plan = nutr.calc_daily(
+                ctx["species"], weight, ctx["birth"], self._nutr_ster,
+                self._nutr_act, food_kcal, goal=goal or "normal")
+        kcal = plan["kcal"] if plan else 0
+        target = round(weight * 0.9, 2) \
+            if (weight and goal == "weight_loss") else 0.0
+
         start = _dt.date.today().strftime("%Y-%m-%d")
-        db.add_diet(self.pet_id, title, start, int(days_s))
-        # времена кормления диеты -> в общий график кормления
+        db.add_diet(self.pet_id, title, start, int(days_s),
+                    goal=goal, kcal=kcal, target_weight=target)
+        # времена кормления диеты -> в общий график кормления (с порциями)
         added = 0
         for t in times_s.replace(";", ",").split(","):
             t = t.strip()
@@ -455,15 +891,20 @@ class PetDetailScreen(AppMixin, MDScreen):
                 _dt.time(int(hh), int(mm))
             except ValueError:
                 continue
-            db.add_feeding(self.pet_id, f"{int(hh):02d}:{int(mm):02d}", title)
+            grams = plan["grams_meal"] if plan else 0
+            db.add_feeding(self.pet_id, f"{int(hh):02d}:{int(mm):02d}",
+                           f"диета «{title}»", grams=grams)
             added += 1
         self.ids.diet_title.text = ""
         self.ids.diet_days.text = ""
         self.ids.diet_times.text = ""
+        self._pending_goal = None
         self._build_diet()
         self._build_feedings()
-        self.app.show_toast(
-            f"Диета начата. Кормлений в расписании: +{added}")
+        msg = f"Диета начата. Кормлений в расписании: +{added}"
+        if kcal:
+            msg += f" · норма ~{kcal} ккал/день"
+        self.app.show_toast(msg)
 
     def finish_diet(self):
         diet = db.get_active_diet(self.pet_id)
@@ -483,8 +924,14 @@ class PetDetailScreen(AppMixin, MDScreen):
             delta = ""
             if len(weights) >= 2:
                 diff = last["kg"] - weights[-2]["kg"]
-                arrow = "↑" if diff > 0 else ("↓" if diff < 0 else "→")
-                delta = f"  ({arrow} {abs(diff):.2f} кг)"
+                # юникод-стрелки не рендерятся Roboto на Windows —
+                # только слова (урок: квадратик вместо символа)
+                if diff > 0:
+                    delta = f"  ·  рост +{diff:.2f} кг"
+                elif diff < 0:
+                    delta = f"  ·  снижение {abs(diff):.2f} кг"
+                else:
+                    delta = "  ·  без изменений"
             self.ids.l_last_weight.text = (
                 f"Последний замер: {last['kg']:.2f} кг "
                 f"({fmt_display(last['weighed_at'])}){delta}"
@@ -506,9 +953,14 @@ class PetDetailScreen(AppMixin, MDScreen):
         chart.set_data(weights)
         if len(weights) >= 2:
             kgs = [w["kg"] for w in weights]
+            first, last_kg = kgs[0], kgs[-1]
+            diff = last_kg - first
+            diff_s = (f"+{diff:.2f}" if diff > 0
+                      else f"{diff:.2f}")  # знак уже в числе
             self.ids.l_chart_stats.text = (
-                f"мин {min(kgs):.2f} кг · макс {max(kgs):.2f} кг · "
-                f"Δ {max(kgs) - min(kgs):.2f} кг"
+                f"мин {min(kgs):.2f} · макс {max(kgs):.2f} · "
+                f"разница {abs(max(kgs) - min(kgs)):.2f} кг · "
+                f"за период {diff_s} кг"
             )
         else:
             self.ids.l_chart_stats.text = (
@@ -526,16 +978,14 @@ class PetDetailScreen(AppMixin, MDScreen):
         db.add_weight(self.pet_id, kg)
         self.ids.weight_input.text = ""
         self._build_weights()
+        self._build_diet_reco()   # тренд изменился — пересчитать подбор
         self.app.show_toast(f"Записано: {kg:.2f} кг")
 
     # ================================================== утилиты
     def _hint(self, text: str) -> MDLabel:
-        return MDLabel(
-            text=text, halign="center",
-            theme_text_color="Custom", text_color=T.TEXT_SUB,
-            size_hint_y=None, height=dp(40),
-            text_size=(self.width - dp(60), None),
-        )
+        """Подсказка секции с АВТО-высотой (без наложений)."""
+        return _auto_label(text, T.TEXT_SUB, "13sp", halign="center",
+                           wrap_width=dp(280))
 
     def _del_btn(self, callback) -> MDIconButton:
         btn = MDIconButton(
