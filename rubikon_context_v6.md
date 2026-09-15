@@ -9,7 +9,7 @@
 - Стек: Python 3.12 + Kivy 2.3.1 + **KivyMD 2.0.0 (пин, см. requirements.txt)**,
   ffpyplayer (видео), winotify (уведомления), pillow
 - Данные: `data/rubikon.db` (SQLite, только локально): 61 препарат, питомцы Кузя и Тишка
-- GitHub: https://github.com/karaulov-viktor/RubikonApp
+- GitHub: deactivate
 - Владелец/автор коммитов: Viktor <Karaylov-Viktor@mai.ru>
 
 ## Состояние на 2026-09-15 (пакет v4)

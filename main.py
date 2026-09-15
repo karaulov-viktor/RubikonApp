@@ -19,6 +19,7 @@
 import os
 import subprocess
 import sys
+import re
 
 from kivy.config import Config
 
@@ -164,6 +165,24 @@ class ToastLabel(Label):
         self._rect.size = self.size
 
 
+def _fix_markup_colors(text: str) -> str:
+    """[color=0.12, 0.34, 0.56, 1.0] -> [color=#1e5739] — Kivy-разметка
+    понимает только hex, а models/legal.py вставляет питоновский кортеж."""
+
+    def to_hex(m):
+        try:
+            vals = [float(v) for v in m.group(1).split(",")]
+            if len(vals) >= 3:
+                return "[color=#%02x%02x%02x]" % tuple(
+                    int(round(c * 255)) for c in vals[:3])
+        except ValueError:
+            pass
+        return ""
+
+    text = re.sub(r"\[color=\s*([0-9.,\s]+)\](\])?", to_hex, text)
+    return text
+
+
 class RubikonApp(MDApp):
 
     # ============================================================= build
@@ -207,24 +226,43 @@ class RubikonApp(MDApp):
 
         # юридический текст на экран согласия
         self.root.ids.screen_manager.get_screen(
-            "disclaimer").ids.legal_text.text = LEGAL_TEXT
+            "disclaimer").ids.legal_text.text = _fix_markup_colors(LEGAL_TEXT)
 
         # меню на заставке не нужно
         self.nav_bar = self.root.ids.nav_bar
         self.root.remove_widget(self.nav_bar)
 
-        Clock.schedule_once(self._after_splash, 2.5)
+        Clock.schedule_once(self._after_splash, 5)
+
         # проверка напоминаний каждые 30 секунд, пока приложение запущено
         Clock.schedule_interval(self._check_notifications, 30)
 
         return self.root
 
+    # ВРЕМЕННО: True — дисклеймер показывается при каждом запуске.
+    # TODO: перед релизом вернуть False!
+    SHOW_DISCLAIMER_EVERY_LAUNCH = True
+
     def _after_splash(self, dt):
         """Заставка -> дисклеймер (первый запуск) или каталог."""
-        if db.get_setting("disclaimer_accepted") == "1":
-            self.go_to("catalog")
-        else:
+        if (self.SHOW_DISCLAIMER_EVERY_LAUNCH
+                or db.get_setting("disclaimer_accepted") != "1"):
             self.go_to("disclaimer")
+        else:
+            self.go_to("catalog")
+
+            # ======================================================= дисклеймер
+    def on_disclaimer_accept(self):
+        """Пользователь принял условия — запоминаем и идём в каталог."""
+        try:
+            db.set_setting("disclaimer_accepted", "1")
+        except Exception as e:
+            print(f"[RubikonApp] не удалось сохранить согласие: {e}")
+        self.go_to("catalog")  # go_to вернёт нижнее меню и подсветит раздел
+
+    def on_disclaimer_decline(self):
+        """Пользователь отказался — закрываем приложение."""
+        self.stop()
 
     # ====================================================== навигация
     def go_to(self, screen_name: str):
@@ -294,14 +332,7 @@ class RubikonApp(MDApp):
         screen.current_pet_id = pet_id
         self.go_to("pet_treatment")
 
-    # ======================================================= дисклеймер
-    def accept_disclaimer(self):
-        db.set_setting("disclaimer_accepted", "1")
-        self.go_to("catalog")
 
-    def decline_disclaimer(self):
-        self.show_toast(
-            "Для работы приложения нужно принять условия использования")
 
     # ==================================================== уведомления
     def _check_notifications(self, dt):

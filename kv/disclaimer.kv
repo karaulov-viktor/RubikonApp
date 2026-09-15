@@ -1,64 +1,47 @@
-#:import T models.theme
-
 <DisclaimerScreen>:
-    md_bg_color: T.BG
+    md_bg_color: "#ffffff"
 
     MDBoxLayout:
         orientation: "vertical"
-        padding: dp(20)
-        spacing: dp(14)
+        padding: dp(16)
+        spacing: dp(12)
 
-        MDBoxLayout:
-            size_hint_y: None
-            height: "64dp"
+        MDLabel:
+            text: "Отказ от ответственности"
+            halign: "center"
+            bold: True
+            font_style: "Headline"
+            role: "small"
+            theme_text_color: "Custom"
+            text_color: "#14532d"
+            adaptive_height: True
 
-            MDIconButton:
-                icon: "shield-check-outline"
-                theme_icon_color: "Custom"
-                icon_color: T.GREEN
-                icon_size: "34sp"
+        ScrollView:
+            bar_width: dp(4)
 
             MDLabel:
-                text: "Правовая информация"
-                font_style: "Headline"
+                id: legal_text
+                text: ""
+                markup: True
+                halign: "left"
+                font_style: "Body"
                 role: "medium"
-                bold: True
                 theme_text_color: "Custom"
-                text_color: T.GREEN
-                valign: "middle"
-
-        MDLabel:
-            id: legal_text
-            text: ""
-            markup: True
-            halign: "left"
-            theme_text_color: "Custom"
-            text_color: T.TEXT_MAIN
-            size_hint_y: 1
-            text_size: (self.width, None)
-            valign: "top"
-
-        MDLabel:
-            text: "Прочитайте текст полностью, чтобы пользоваться приложением"
-            halign: "center"
-            theme_text_color: "Custom"
-            text_color: T.TEXT_SUB
-            size_hint_y: None
-            height: "26dp"
+                text_color: "#1b5e20"
+                size_hint_y: None
+                height: self.texture_size[1]
+                text_size: self.width - dp(8), None
+                padding: dp(4), dp(8)
 
         MDButton:
-            id: btn_accept
-            style: "filled"
-            size_hint_y: None
-            height: "50dp"
-            on_release: root.app.accept_disclaimer()
+            pos_hint: {"center_x": 0.5}
+            on_release: app.on_disclaimer_accept()
             MDButtonText:
-                text: "Принимаю"
+                text: "Принять"
 
         MDButton:
-            style: "text"
-            size_hint_y: None
-            height: "40dp"
-            on_release: root.app.decline_disclaimer()
+            style: "outlined"
+            pos_hint: {"center_x": 0.5}
+            on_release: app.on_disclaimer_decline()
             MDButtonText:
-                text: "Не принимаю"
+                text: "Отказаться"

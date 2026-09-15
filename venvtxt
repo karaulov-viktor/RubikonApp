@@ -1,0 +1,4 @@
+python -m venv venv # создаёт папку venv
+venv\Scripts\activate # активирует виртуальное окружение
+python -m pip install --upgrade pip # устанавливает последнюю версию pip
+python -m pip install -r requirements.txt #  устанавливает все зависимости из файла requirements.txt
