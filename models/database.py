@@ -22,7 +22,9 @@ _migrate(): добавляет в pets недостающие колонки В 
 Правила проекта:
   - ВСЕ пути к файлам в БД — ОТНОСИТЕЛЬНЫЕ (от корня проекта);
   - бэкап data/rubikon.db -> backup/ при каждом старте приложения;
-  - драг-база (61 препарат) миграциями НЕ трогается вообще.
+  - драг-база: миграция только ДОБАВЛЯЕТ дозовые колонки (dose_unit/
+    tab_mg/form — нужны калькулятору v2), названия и данные препаратов
+    не трогаются; значения заполняют скрипты fill_doses.py / fix_doses_v2.py.
 """
 import os
 import shutil
@@ -167,6 +169,24 @@ DIET_COLUMNS_UNION = {
     "target_weight": "REAL DEFAULT 0",   # целевой вес, кг (0 — нет)
 }
 
+# Калькулятор v2: дозовые колонки drugs. Как значения их заполняет
+# fill_doses.py / fix_doses_v2.py, а миграция лишь гарантирует, что
+# колонки ЕСТЬ (свежие базы; урок спринта 3 — CREATE TABLE IF NOT
+# EXISTS существующую таблицу не обновляет).
+#   dose_unit — смысл dose_per_kg:
+#     mg_kg      мг/кг действующего вещества (конц. -> мл, таб.мг -> табл.)
+#     ml_kg      мл/кг ГОТОВОГО препарата (мл = вес × доза)
+#     tab_kg     таблеток на кг (таб = вес × доза)
+#     per_animal доза НА ЖИВОТНОЕ, не на кг (мл = доза)
+#     none       несистемный (наружный, дезинфекция) — расчёт не нужен
+#   tab_mg  — мг действующего вещества в ОДНОЙ таблетке
+#   form    — «раствор» / «суспензия» / «таблетки» (подпись в UI)
+DRUG_DOSE_COLUMNS_UNION = {
+    "dose_unit": "TEXT DEFAULT ''",
+    "tab_mg": "REAL DEFAULT 0",
+    "form": "TEXT DEFAULT ''",
+}
+
 
 # ------------------------------------------------------------------
 # Базовое: коннект, миграция, бэкап
@@ -224,6 +244,8 @@ def init_db():
         _migrate_pets(conn)
         _ensure_columns(conn, "feedings", FEEDING_COLUMNS_UNION)
         _ensure_columns(conn, "diets", DIET_COLUMNS_UNION)
+        # дозовые колонки для калькулятора v2 (идемпотентно)
+        _ensure_columns(conn, "drugs", DRUG_DOSE_COLUMNS_UNION)
         conn.commit()
     finally:
         conn.close()
@@ -334,6 +356,8 @@ class Database:
         # Миграция pets до объединённого набора колонок (birth_date
         # для старых баз; size/age/weight/history/icon — для свежих).
         _ensure_columns(self.conn, "pets", PET_COLUMNS_UNION)
+        # дозовые колонки drugs для калькулятора v2 (идемпотентно)
+        _ensure_columns(self.conn, "drugs", DRUG_DOSE_COLUMNS_UNION)
 
         self._seed_data()
         self.conn.commit()
@@ -444,6 +468,23 @@ class Database:
             (like, like)
         )
         return self.cursor.fetchall()
+
+    def get_all_drugs_dosing(self):
+        """Дозовые параметры ВСЕХ препаратов — для калькулятора v2.
+
+        Возвращает список словарей: id, name, dose_per_kg, concentration,
+        dose_unit, tab_mg, form, duration_days. Колонки dose_unit/tab_mg/
+        form появляются у старых баз через миграцию (см. DRUG_DOSE_...
+        выше); пока fill-скрипт их не заполнил, значения пустые —
+        калькулятор трактует это как «ручной ввод».
+        """
+        self.cursor.execute(
+            """SELECT id, name, dose_per_kg, concentration,
+                      dose_unit, tab_mg, form, duration_days
+               FROM drugs ORDER BY name"""
+        )
+        cols = [d[0] for d in self.cursor.description]
+        return [dict(zip(cols, row)) for row in self.cursor.fetchall()]
 
     def get_drug_by_id(self, drug_id):
         self.cursor.execute(

@@ -19,7 +19,6 @@
 import os
 import subprocess
 import sys
-import re
 
 from kivy.config import Config
 
@@ -64,6 +63,12 @@ from kivymd.uix.navigationbar.navigationbar import (
 )
 
 TASK_NAME = "RubikonAppReminder"
+
+# Показывать экран согласия (дисклеймер) при КАЖДОМ запуске —
+# удобно для тестирования и демонстрации. ПЕРЕД РЕЛИЗОМ поставить
+# False: тогда согласие покажется только один раз (первый запуск)
+# и запомнится в базе.
+SHOW_DISCLAIMER_EVERY_LAUNCH = True
 
 
 def _patch_kivymd_fbo():
@@ -165,24 +170,6 @@ class ToastLabel(Label):
         self._rect.size = self.size
 
 
-def _fix_markup_colors(text: str) -> str:
-    """[color=0.12, 0.34, 0.56, 1.0] -> [color=#1e5739] — Kivy-разметка
-    понимает только hex, а models/legal.py вставляет питоновский кортеж."""
-
-    def to_hex(m):
-        try:
-            vals = [float(v) for v in m.group(1).split(",")]
-            if len(vals) >= 3:
-                return "[color=#%02x%02x%02x]" % tuple(
-                    int(round(c * 255)) for c in vals[:3])
-        except ValueError:
-            pass
-        return ""
-
-    text = re.sub(r"\[color=\s*([0-9.,\s]+)\](\])?", to_hex, text)
-    return text
-
-
 class RubikonApp(MDApp):
 
     # ============================================================= build
@@ -200,6 +187,10 @@ class RubikonApp(MDApp):
         # шрифты; бирюза/мята убраны).
         print(f"[RubikonApp] KivyMD {getattr(kivymd, '__version__', '?')}"
               f", тема {getattr(T, 'PALETTE_VERSION', 'НЕИЗВЕСТНА')}")
+        # маркер сборки main.py: если этой строки НЕТ в логе при
+        # запуске — на диске старый main.py, замените файл из пакета
+        print("[RubikonApp] main.py v2.2 — дисклеймер при каждом "
+              "запуске + псевдонимы кнопок согласия")
         if getattr(T, "PALETTE_VERSION", "") != "whitegreen-4":
             print("[RubikonApp] ВНИМАНИЕ: models/theme.py устарел —"
                   " скопируйте файл из пакета v4, иначе цвета будут"
@@ -226,43 +217,25 @@ class RubikonApp(MDApp):
 
         # юридический текст на экран согласия
         self.root.ids.screen_manager.get_screen(
-            "disclaimer").ids.legal_text.text = _fix_markup_colors(LEGAL_TEXT)
+            "disclaimer").ids.legal_text.text = LEGAL_TEXT
 
         # меню на заставке не нужно
         self.nav_bar = self.root.ids.nav_bar
         self.root.remove_widget(self.nav_bar)
 
-        Clock.schedule_once(self._after_splash, 5)
-
+        Clock.schedule_once(self._after_splash, 2.5)
         # проверка напоминаний каждые 30 секунд, пока приложение запущено
         Clock.schedule_interval(self._check_notifications, 30)
 
         return self.root
 
-    # ВРЕМЕННО: True — дисклеймер показывается при каждом запуске.
-    # TODO: перед релизом вернуть False!
-    SHOW_DISCLAIMER_EVERY_LAUNCH = True
-
     def _after_splash(self, dt):
-        """Заставка -> дисклеймер (первый запуск) или каталог."""
-        if (self.SHOW_DISCLAIMER_EVERY_LAUNCH
-                or db.get_setting("disclaimer_accepted") != "1"):
-            self.go_to("disclaimer")
-        else:
+        """Заставка -> дисклеймер (каждый запуск или первый) -> каталог."""
+        if (not SHOW_DISCLAIMER_EVERY_LAUNCH
+                and db.get_setting("disclaimer_accepted") == "1"):
             self.go_to("catalog")
-
-            # ======================================================= дисклеймер
-    def on_disclaimer_accept(self):
-        """Пользователь принял условия — запоминаем и идём в каталог."""
-        try:
-            db.set_setting("disclaimer_accepted", "1")
-        except Exception as e:
-            print(f"[RubikonApp] не удалось сохранить согласие: {e}")
-        self.go_to("catalog")  # go_to вернёт нижнее меню и подсветит раздел
-
-    def on_disclaimer_decline(self):
-        """Пользователь отказался — закрываем приложение."""
-        self.stop()
+        else:
+            self.go_to("disclaimer")
 
     # ====================================================== навигация
     def go_to(self, screen_name: str):
@@ -312,6 +285,16 @@ class RubikonApp(MDApp):
         self.selected_drug_id = drug_id
         self.go_to("drug_detail")
 
+    def open_calculator_for_drug(self):
+        """Кнопка «Рассчитать дозу» в карточке препарата: калькулятор
+        открывается сразу с выбранным препаратом (drug_id берётся из
+        selected_drug_id, куда его кладёт open_drug_detail)."""
+        drug_id = getattr(self, "selected_drug_id", None)
+        if drug_id:
+            self.root.ids.screen_manager.get_screen(
+                "calculator").preselect_drug(drug_id)
+        self.go_to("calculator")
+
     # ====================================== мосты экранов питомцев
     def add_pet(self):
         self.root.ids.screen_manager.get_screen("pet_form").start_add()
@@ -332,7 +315,20 @@ class RubikonApp(MDApp):
         screen.current_pet_id = pet_id
         self.go_to("pet_treatment")
 
+    # ======================================================= дисклеймер
+    def accept_disclaimer(self):
+        db.set_setting("disclaimer_accepted", "1")
+        self.go_to("catalog")
 
+    def decline_disclaimer(self):
+        self.show_toast(
+            "Для работы приложения нужно принять условия использования")
+
+    # Совместимость со старыми версиями kv/disclaimer.kv, где кнопки
+    # вызывают app.on_disclaimer_accept() / app.on_disclaimer_decline().
+    # Оба имени ведут к одним и тем же методам — работает любой kv.
+    on_disclaimer_accept = accept_disclaimer
+    on_disclaimer_decline = decline_disclaimer
 
     # ==================================================== уведомления
     def _check_notifications(self, dt):

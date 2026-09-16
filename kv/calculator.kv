@@ -1,17 +1,21 @@
-# Калькулятор дозировок — RubikonApp
+# Калькулятор дозировок v2 — RubikonApp
 #
-# Редизайн «PetsHealth»:
-#   - фон экрана: светлый #F3F7FA через canvas.before
-#     (НЕ app.theme_cls.backgroundColor — в сборке KivyMD на машинах
-#     пользователя он разрешается в чёрный);
-#   - шапка прозрачная на фоне, тёмный заголовок, серый подзаголовок;
-#   - поля в белой карточке с тонкой рамкой;
-#   - акценты бирюзовые #2FA5C5, результат — мятная карточка.
+# Редизайн «под лекарственные формы»:
+#   - сверху поле выбора препарата из базы (readonly, тап -> меню);
+#   - под ним карточка-описание: форма, доза, концентрация/таблетка, курс;
+#   - поля ручного ввода адаптируются: лишние для формы скрываются
+#     (высота 0 + прозрачность, чтобы не оставлять дыр в макете);
+#   - результат: строка A (главное: мг / мл / число таблеток) и
+#     необязательная строка B (result_b_visible).
 #
-# ВАЖНО (правила проекта):
-#   - только ПРОБЕЛЫ, 4 пробела на уровень вложенности (табы запрещены!)
-#   - составные виджеты KivyMD 2.0.1.dev0: тексты полей и кнопок —
-#     обязательно вложенные классы (MDTextFieldHintText, MDButtonText)
+# Правила проекта соблюдены:
+#   - фон экрана — светлый C.BG через canvas.before (НЕ
+#     app.theme_cls.backgroundColor — в сборке на машинах пользователя
+#     он разрешается в чёрный);
+#   - только ПРОБЕЛЫ, 4 пробела на уровень;
+#   - составные виджеты KivyMD 2.0.0 — вложенные классы
+#     (MDTextFieldHintText, MDTextFieldLeadingIcon, MDButtonText);
+#   - шрифт Roboto не рисует юникод-стрелки — используем только текст.
 
 #:import C models.theme
 
@@ -46,7 +50,7 @@
                 text_color: C.TEXT_MAIN
 
             MDLabel:
-                text: "Разовая доза и объём препарата для инъекции"
+                text: "Объём инъекции или число таблеток — по базе препаратов"
                 font_style: "Body"
                 adaptive_height: True
                 theme_text_color: "Custom"
@@ -67,13 +71,62 @@
                 padding: dp(16)
                 spacing: dp(14)
 
-                # Формула-подсказка: из чего складывается расчёт
+                # Формула-подсказка: меняется вместе с формой препарата
                 MDLabel:
-                    text: "Объём, мл = Вес, кг × Доза, мг/кг ÷ Концентрация, мг/мл"
+                    text: root.formula_text
                     font_style: "Body"
                     adaptive_height: True
                     theme_text_color: "Custom"
                     text_color: C.TEXT_SUB
+
+                # --------------------------------------------------
+                # Выбор препарата (белая карточка с тонкой рамкой)
+                # --------------------------------------------------
+                MDBoxLayout:
+                    orientation: "vertical"
+                    adaptive_height: True
+                    spacing: dp(8)
+                    md_bg_color: C.CARD
+                    line_color: C.CARD_BORDER
+                    radius: [dp(14)]
+                    padding: dp(14)
+
+                    MDTextField:
+                        id: drug_field
+                        mode: "filled"
+                        readonly: True
+                        # ВАЖНО: focus берётся у ПОЛЯ (self), а не у
+                        # экрана (root) — у экрана его нет; при потере
+                        # фокуса (self.focus=False) меню не открываем.
+                        on_focus:
+                            root.open_drug_menu() if self.focus else None
+
+                        MDTextFieldLeadingIcon:
+                            icon: "pill"
+
+                        MDTextFieldTrailingIcon:
+                            icon: "menu-down"
+
+                        MDTextFieldHintText:
+                            text: "Препарат (или ручной расчёт)"
+
+                    # описание препарата: форма · доза · содержание
+                    MDLabel:
+                        text: root.drug_info_text
+                        font_style: "Body"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: C.TEXT_MAIN
+                        opacity: 1 if root.drug_info_text else 0
+
+                    # курс: «Однократно» / «Курс: N дн»
+                    MDLabel:
+                        text: root.course_text
+                        font_style: "Body"
+                        adaptive_height: True
+                        theme_text_color: "Custom"
+                        text_color: C.TEXT_SUB
+                        opacity: 1 if root.course_text else 0
 
                 # --------------------------------------------------
                 # Блок ввода (белая карточка с тонкой рамкой)
@@ -100,22 +153,41 @@
                     MDTextField:
                         id: dose_field
                         mode: "filled"
+                        size_hint_y: None
+                        height: dp(56) if root.dose_field_visible else 0
+                        opacity: 1 if root.dose_field_visible else 0
 
                         MDTextFieldLeadingIcon:
                             icon: "medical-bag"
 
                         MDTextFieldHintText:
-                            text: "Дозировка препарата, мг/кг"
+                            text: root.dose_hint
 
                     MDTextField:
                         id: conc_field
                         mode: "filled"
+                        size_hint_y: None
+                        height: dp(56) if root.conc_field_visible else 0
+                        opacity: 1 if root.conc_field_visible else 0
 
                         MDTextFieldLeadingIcon:
                             icon: "test-tube"
 
                         MDTextFieldHintText:
                             text: "Концентрация препарата, мг/мл"
+
+                    MDTextField:
+                        id: tab_field
+                        mode: "filled"
+                        size_hint_y: None
+                        height: dp(56) if root.tab_field_visible else 0
+                        opacity: 1 if root.tab_field_visible else 0
+
+                        MDTextFieldLeadingIcon:
+                            icon: "pill"
+
+                        MDTextFieldHintText:
+                            text: "Содержание таблетки, мг"
 
                 # --------------------------------------------------
                 # Кнопки
@@ -145,8 +217,7 @@
                             text_color: C.PRIMARY
 
                 # --------------------------------------------------
-                # Ошибка (видна только когда error_text непустой;
-                # высота 0 без ошибки — чтобы не оставлять дыру в макете)
+                # Ошибка (видна только когда error_text непустой)
                 # --------------------------------------------------
                 MDLabel:
                     text: root.error_text
@@ -158,47 +229,62 @@
                     height: dp(22) if root.error_text else 0
 
                 # --------------------------------------------------
-                # Результат (мятная карточка)
+                # Результат (нейтрально-зелёная карточка)
                 # --------------------------------------------------
                 MDBoxLayout:
                     orientation: "vertical"
                     adaptive_height: True
                     spacing: dp(4)
-                    md_bg_color: C.MINT_BG
+                    md_bg_color: C.GREEN_SOFT
                     radius: [dp(14)]
                     padding: dp(16)
 
+                    # строка A — главный результат режима
                     MDLabel:
-                        text: "Нужно действующего вещества"
+                        text: root.result_a_title
                         font_style: "Body"
                         adaptive_height: True
                         theme_text_color: "Custom"
                         text_color: C.TEXT_SUB
 
                     MDLabel:
-                        text: root.result_mg
+                        text: root.result_a_value
                         font_style: "Headline"
                         adaptive_height: True
                         theme_text_color: "Custom"
-                        text_color: C.MINT_TEXT
+                        text_color: C.GREEN
+
+                    # строка B — вторичный результат (может скрываться)
+                    MDLabel:
+                        text: root.result_b_title
+                        font_style: "Body"
+                        theme_text_color: "Custom"
+                        text_color: C.TEXT_SUB
+                        size_hint_y: None
+                        height: dp(22) if root.result_b_visible else 0
+                        opacity: 1 if root.result_b_visible else 0
 
                     MDLabel:
-                        text: "Объём препарата в шприц"
+                        text: root.result_b_value
+                        font_style: "Headline"
+                        theme_text_color: "Custom"
+                        text_color: C.GREEN
+                        size_hint_y: None
+                        height: dp(32) if root.result_b_visible else 0
+                        opacity: 1 if root.result_b_visible else 0
+
+                    # совет (округление таблеток и т.п.)
+                    MDLabel:
+                        text: root.hint_text
                         font_style: "Body"
                         adaptive_height: True
                         theme_text_color: "Custom"
                         text_color: C.TEXT_SUB
-
-                    MDLabel:
-                        text: root.result_ml
-                        font_style: "Headline"
-                        adaptive_height: True
-                        theme_text_color: "Custom"
-                        text_color: C.MINT_TEXT
+                        opacity: 1 if root.hint_text else 0
 
                 # Совет под результатом
                 MDLabel:
-                    text: "Совет: набирайте шприц подходящего объёма и сверяйтесь с инструкцией к препарату."
+                    text: "Совет: сверяйте результат с инструкцией к препарату. Набирайте шприц подходящего объёма; таблетку делите только если это разрешено инструкцией."
                     font_style: "Body"
                     adaptive_height: True
                     theme_text_color: "Custom"

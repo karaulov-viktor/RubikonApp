@@ -136,9 +136,9 @@
                         text_color: C.TEXT_MAIN
 
                 # --------------------------------------------------
-                # Кнопка «Рассчитать дозу» — переход на экран калькулятора.
-                # Раньше кнопка дёргала заглушку app.calculate_dose() из
-                # main.py (только print). Теперь — реальная навигация.
+                # Кнопка «Рассчитать дозу» — калькулятор v2 открывается
+                # СРАЗУ С ЭТИМ ПРЕПАРАТОМ (drug_id лежит в
+                # app.selected_drug_id; раньше был голый переход).
                 # --------------------------------------------------
                 MDButton:
                     id: calc_button
@@ -147,7 +147,7 @@
                     # и красит кнопку цветом темы (см. button.kv KivyMD)
                     theme_bg_color: "Custom"
                     md_bg_color: C.PRIMARY
-                    on_release: root.manager.current = "calculator"
+                    on_release: app.open_calculator_for_drug()
 
                     MDButtonIcon:
                         icon: "calculator"
