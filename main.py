@@ -174,12 +174,14 @@ class RubikonApp(MDApp):
 
     # ============================================================= build
     def build(self):
-        self.theme_cls.theme_style = "Light"       # белая база
-        self.theme_cls.primary_palette = "Green"   # фирменный зелёный
-        self.theme_cls.primary_hue = "900"         # тёмный, ближе к #14532D
+        self.theme_cls.theme_style = "Light"  # белая база
 
-        # БЕЛЫЙ фон окна — литералом, а не через T.BG: если у пользователя
-        # остался старый theme.py, окно всё равно будет белым.
+        # ВАЖНО про KivyMD 2.0.0:
+        # 1. primary_palette принимает hex-строку НАПРЯМУЮ (color_to_rgba парсит '#...').
+        #    Это обходит баг со словарём hex_colormap — имена типа "BlueGray" там нет.
+        # 2. primary_hue в 2.0.0 не используется (это legacy 1.x) — убираем.
+        self.theme_cls.primary_palette = "#212121"  # тёмно-серый (Material You схема из этого seed)
+
         Window.clearcolor = (1, 1, 1, 1)
 
         # Самопроверка окружения: в консоли должна быть строка
@@ -191,7 +193,7 @@ class RubikonApp(MDApp):
         # запуске — на диске старый main.py, замените файл из пакета
         print("[RubikonApp] main.py v2.2 — дисклеймер при каждом "
               "запуске + псевдонимы кнопок согласия")
-        if getattr(T, "PALETTE_VERSION", "") != "whitegreen-4":
+        if getattr(T, "PALETTE_VERSION", "") != "white-neutral-1":
             print("[RubikonApp] ВНИМАНИЕ: models/theme.py устарел —"
                   " скопируйте файл из пакета v4, иначе цвета будут"
                   " неправильными!")
@@ -223,7 +225,7 @@ class RubikonApp(MDApp):
         self.nav_bar = self.root.ids.nav_bar
         self.root.remove_widget(self.nav_bar)
 
-        Clock.schedule_once(self._after_splash, 2.5)
+        Clock.schedule_once(self._after_splash, 5)
         # проверка напоминаний каждые 30 секунд, пока приложение запущено
         Clock.schedule_interval(self._check_notifications, 30)
 

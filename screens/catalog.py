@@ -13,7 +13,9 @@ from models.theme import CARD, CARD_BORDER, TEXT_MAIN
 class DrugCard(MDCard):
     def __init__(self, **kwargs):
         kwargs.setdefault("md_bg_color", CARD)      # белая карточка
-        kwargs.setdefault("line_color", CARD_BORDER)  # тонкая рамка
+        kwargs.setdefault("theme_bg_color", "Custom")
+        #kwargs.setdefault("line_color", CARD_BORDER)  # тонкая рамка
+        kwargs.setdefault("theme_line_color", "Custom")
         kwargs.setdefault("radius", [dp(14)])
         super().__init__(**kwargs)
         self.bind(width=self._update_height)
