@@ -5,7 +5,7 @@
 # calendar.
 # Белая нижняя панель — явный md_bg_color (урок чёрного навбара на
 # KivyMD 2.0.1.dev0 у пользователя).
-
+#:import T models.theme
 MDBoxLayout:
     orientation: "vertical"
 
@@ -50,38 +50,56 @@ MDBoxLayout:
 
     MDNavigationBar:
         id: nav_bar
-        md_bg_color: 1, 1, 1, 1
+        md_bg_color: T.WHITE                    # чисто-белый фон
+        theme_bg_color: "Custom"                # обязательно! иначе Material You подменяет
+        indicator_color: 0, 0, 0, 0             # прозрачная pill — нет бирюзовой подсветки
         on_switch_tabs: app.on_switch_tabs(*args)
 
         MDNavigationItem:
             active: True
-
             MDNavigationItemIcon:
                 icon: "magnify"
-
+                theme_icon_color: "Custom"
+                icon_color_active: 0.078, 0.325, 0.176, 1     # #14532D тёмно-зелёный
+                icon_color_normal: 0.31, 0.42, 0.35, 1         # приглушённый зелёно-серый
             MDNavigationItemLabel:
                 text: "Каталог"
+                theme_text_color: "Custom"
+                text_color_active: 0.078, 0.325, 0.176, 1
+                text_color_normal: 0.31, 0.42, 0.35, 1
 
         MDNavigationItem:
-
             MDNavigationItemIcon:
                 icon: "account"
-
+                theme_icon_color: "Custom"
+                icon_color_active: 0.078, 0.325, 0.176, 1
+                icon_color_normal: 0.31, 0.42, 0.35, 1
             MDNavigationItemLabel:
                 text: "Профиль"
+                theme_text_color: "Custom"
+                text_color_active: 0.078, 0.325, 0.176, 1
+                text_color_normal: 0.31, 0.42, 0.35, 1
 
         MDNavigationItem:
-
             MDNavigationItemIcon:
                 icon: "calculator"
-
+                theme_icon_color: "Custom"
+                icon_color_active: 0.078, 0.325, 0.176, 1
+                icon_color_normal: 0.31, 0.42, 0.35, 1
             MDNavigationItemLabel:
                 text: "Калькулятор"
+                theme_text_color: "Custom"
+                text_color_active: 0.078, 0.325, 0.176, 1
+                text_color_normal: 0.31, 0.42, 0.35, 1
 
         MDNavigationItem:
-
             MDNavigationItemIcon:
                 icon: "calendar"
-
+                theme_icon_color: "Custom"
+                icon_color_active: 0.078, 0.325, 0.176, 1
+                icon_color_normal: 0.31, 0.42, 0.35, 1
             MDNavigationItemLabel:
                 text: "Календарь"
+                theme_text_color: "Custom"
+                text_color_active: 0.078, 0.325, 0.176, 1
+                text_color_normal: 0.31, 0.42, 0.35, 1

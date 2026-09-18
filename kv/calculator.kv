@@ -1,27 +1,7 @@
-# Калькулятор дозировок v2 — RubikonApp
-#
-# Редизайн «под лекарственные формы»:
-#   - сверху поле выбора препарата из базы (readonly, тап -> меню);
-#   - под ним карточка-описание: форма, доза, концентрация/таблетка, курс;
-#   - поля ручного ввода адаптируются: лишние для формы скрываются
-#     (высота 0 + прозрачность, чтобы не оставлять дыр в макете);
-#   - результат: строка A (главное: мг / мл / число таблеток) и
-#     необязательная строка B (result_b_visible).
-#
-# Правила проекта соблюдены:
-#   - фон экрана — светлый C.BG через canvas.before (НЕ
-#     app.theme_cls.backgroundColor — в сборке на машинах пользователя
-#     он разрешается в чёрный);
-#   - только ПРОБЕЛЫ, 4 пробела на уровень;
-#   - составные виджеты KivyMD 2.0.0 — вложенные классы
-#     (MDTextFieldHintText, MDTextFieldLeadingIcon, MDButtonText);
-#   - шрифт Roboto не рисует юникод-стрелки — используем только текст.
-
 #:import C models.theme
 
 <CalculatorScreen>
     id: calculator_screen
-    # Явный светлый фон, рисуется ПОД содержимым (canvas.before)
     canvas.before:
         Color:
             rgba: C.BG
@@ -32,22 +12,20 @@
     MDBoxLayout:
         orientation: "vertical"
 
-        # ----------------------------------------------------------
-        # Шапка — тёмный заголовок, серый подзаголовок
-        # ----------------------------------------------------------
         MDBoxLayout:
             orientation: "vertical"
             adaptive_height: True
             padding: dp(16), dp(14)
             spacing: dp(2)
             md_bg_color: C.BG
+            theme_bg_color: "Custom"
 
             MDLabel:
                 text: "Калькулятор дозировок"
                 font_style: "Title"
                 adaptive_height: True
                 theme_text_color: "Custom"
-                text_color: C.TEXT_MAIN
+                text_color: C.BRAND_GREEN
 
             MDLabel:
                 text: "Объём инъекции или число таблеток — по базе препаратов"
@@ -60,9 +38,6 @@
             size_hint_y: None
             height: dp(1)
 
-        # ----------------------------------------------------------
-        # Содержимое (прокручивается на маленьких экранах)
-        # ----------------------------------------------------------
         ScrollView:
 
             MDBoxLayout:
@@ -71,7 +46,6 @@
                 padding: dp(16)
                 spacing: dp(14)
 
-                # Формула-подсказка: меняется вместе с формой препарата
                 MDLabel:
                     text: root.formula_text
                     font_style: "Body"
@@ -79,38 +53,47 @@
                     theme_text_color: "Custom"
                     text_color: C.TEXT_SUB
 
-                # --------------------------------------------------
-                # Выбор препарата (белая карточка с тонкой рамкой)
-                # --------------------------------------------------
                 MDBoxLayout:
                     orientation: "vertical"
                     adaptive_height: True
                     spacing: dp(8)
                     md_bg_color: C.CARD
-                    line_color: C.CARD_BORDER
+                    line_color: C.BRAND_GREEN_BORDER
                     radius: [dp(14)]
                     padding: dp(14)
+                    theme_bg_color: "Custom"
+                    theme_line_color: "Custom"
 
                     MDTextField:
                         id: drug_field
                         mode: "filled"
                         readonly: True
-                        # ВАЖНО: focus берётся у ПОЛЯ (self), а не у
-                        # экрана (root) — у экрана его нет; при потере
-                        # фокуса (self.focus=False) меню не открываем.
-                        on_focus:
-                            root.open_drug_menu() if self.focus else None
+                        on_focus: root.open_drug_menu() if self.focus else None
+                        theme_bg_color: "Custom"
+                        fill_color_normal: 0, 0, 0, 0
+                        fill_color_focus: 0, 0, 0, 0
+                        theme_line_color: "Custom"
+                        line_color_normal: C.BRAND_GREEN_BORDER
+                        line_color_focus: C.BRAND_GREEN
+                        theme_text_color: "Custom"
+                        text_color_normal: C.TEXT_MAIN
+                        text_color_focus: C.BRAND_GREEN
 
                         MDTextFieldLeadingIcon:
                             icon: "pill"
+                            theme_icon_color: "Custom"
+                            icon_color_normal: C.BRAND_GREEN
+                            icon_color_focus: C.BRAND_GREEN
 
                         MDTextFieldTrailingIcon:
                             icon: "menu-down"
+                            theme_icon_color: "Custom"
+                            icon_color_normal: C.TEXT_SUB
+                            icon_color_focus: C.BRAND_GREEN
 
                         MDTextFieldHintText:
                             text: "Препарат (или ручной расчёт)"
 
-                    # описание препарата: форма · доза · содержание
                     MDLabel:
                         text: root.drug_info_text
                         font_style: "Body"
@@ -119,7 +102,6 @@
                         text_color: C.TEXT_MAIN
                         opacity: 1 if root.drug_info_text else 0
 
-                    # курс: «Однократно» / «Курс: N дн»
                     MDLabel:
                         text: root.course_text
                         font_style: "Body"
@@ -128,24 +110,35 @@
                         text_color: C.TEXT_SUB
                         opacity: 1 if root.course_text else 0
 
-                # --------------------------------------------------
-                # Блок ввода (белая карточка с тонкой рамкой)
-                # --------------------------------------------------
                 MDBoxLayout:
                     orientation: "vertical"
                     adaptive_height: True
                     spacing: dp(10)
                     md_bg_color: C.CARD
-                    line_color: C.CARD_BORDER
+                    line_color: C.BRAND_GREEN_BORDER
                     radius: [dp(14)]
                     padding: dp(14)
+                    theme_bg_color: "Custom"
+                    theme_line_color: "Custom"
 
                     MDTextField:
                         id: weight_field
                         mode: "filled"
+                        theme_bg_color: "Custom"
+                        fill_color_normal: 0, 0, 0, 0
+                        fill_color_focus: 0, 0, 0, 0
+                        theme_line_color: "Custom"
+                        line_color_normal: C.BRAND_GREEN_BORDER
+                        line_color_focus: C.BRAND_GREEN
+                        theme_text_color: "Custom"
+                        text_color_normal: C.TEXT_MAIN
+                        text_color_focus: C.BRAND_GREEN
 
                         MDTextFieldLeadingIcon:
                             icon: "weight-kilogram"
+                            theme_icon_color: "Custom"
+                            icon_color_normal: C.BRAND_GREEN
+                            icon_color_focus: C.BRAND_GREEN
 
                         MDTextFieldHintText:
                             text: "Вес животного, кг"
@@ -156,9 +149,21 @@
                         size_hint_y: None
                         height: dp(56) if root.dose_field_visible else 0
                         opacity: 1 if root.dose_field_visible else 0
+                        theme_bg_color: "Custom"
+                        fill_color_normal: 0, 0, 0, 0
+                        fill_color_focus: 0, 0, 0, 0
+                        theme_line_color: "Custom"
+                        line_color_normal: C.BRAND_GREEN_BORDER
+                        line_color_focus: C.BRAND_GREEN
+                        theme_text_color: "Custom"
+                        text_color_normal: C.TEXT_MAIN
+                        text_color_focus: C.BRAND_GREEN
 
                         MDTextFieldLeadingIcon:
                             icon: "medical-bag"
+                            theme_icon_color: "Custom"
+                            icon_color_normal: C.BRAND_GREEN
+                            icon_color_focus: C.BRAND_GREEN
 
                         MDTextFieldHintText:
                             text: root.dose_hint
@@ -169,9 +174,21 @@
                         size_hint_y: None
                         height: dp(56) if root.conc_field_visible else 0
                         opacity: 1 if root.conc_field_visible else 0
+                        theme_bg_color: "Custom"
+                        fill_color_normal: 0, 0, 0, 0
+                        fill_color_focus: 0, 0, 0, 0
+                        theme_line_color: "Custom"
+                        line_color_normal: C.BRAND_GREEN_BORDER
+                        line_color_focus: C.BRAND_GREEN
+                        theme_text_color: "Custom"
+                        text_color_normal: C.TEXT_MAIN
+                        text_color_focus: C.BRAND_GREEN
 
                         MDTextFieldLeadingIcon:
                             icon: "test-tube"
+                            theme_icon_color: "Custom"
+                            icon_color_normal: C.BRAND_GREEN
+                            icon_color_focus: C.BRAND_GREEN
 
                         MDTextFieldHintText:
                             text: "Концентрация препарата, мг/мл"
@@ -182,16 +199,25 @@
                         size_hint_y: None
                         height: dp(56) if root.tab_field_visible else 0
                         opacity: 1 if root.tab_field_visible else 0
+                        theme_bg_color: "Custom"
+                        fill_color_normal: 0, 0, 0, 0
+                        fill_color_focus: 0, 0, 0, 0
+                        theme_line_color: "Custom"
+                        line_color_normal: C.BRAND_GREEN_BORDER
+                        line_color_focus: C.BRAND_GREEN
+                        theme_text_color: "Custom"
+                        text_color_normal: C.TEXT_MAIN
+                        text_color_focus: C.BRAND_GREEN
 
                         MDTextFieldLeadingIcon:
                             icon: "pill"
+                            theme_icon_color: "Custom"
+                            icon_color_normal: C.BRAND_GREEN
+                            icon_color_focus: C.BRAND_GREEN
 
                         MDTextFieldHintText:
                             text: "Содержание таблетки, мг"
 
-                # --------------------------------------------------
-                # Кнопки
-                # --------------------------------------------------
                 MDBoxLayout:
                     adaptive_height: True
                     spacing: dp(12)
@@ -199,7 +225,7 @@
                     MDButton:
                         style: "filled"
                         theme_bg_color: "Custom"
-                        md_bg_color: C.PRIMARY
+                        md_bg_color: C.BRAND_GREEN
                         on_release: root.calculate()
 
                         MDButtonText:
@@ -214,11 +240,8 @@
                         MDButtonText:
                             text: "Сбросить"
                             theme_text_color: "Custom"
-                            text_color: C.PRIMARY
+                            text_color: C.BRAND_GREEN
 
-                # --------------------------------------------------
-                # Ошибка (видна только когда error_text непустой)
-                # --------------------------------------------------
                 MDLabel:
                     text: root.error_text
                     font_style: "Body"
@@ -228,18 +251,15 @@
                     size_hint_y: None
                     height: dp(22) if root.error_text else 0
 
-                # --------------------------------------------------
-                # Результат (нейтрально-зелёная карточка)
-                # --------------------------------------------------
                 MDBoxLayout:
                     orientation: "vertical"
                     adaptive_height: True
                     spacing: dp(4)
-                    md_bg_color: C.GREEN_SOFT
+                    md_bg_color: C.BRAND_GREEN_SOFT
                     radius: [dp(14)]
                     padding: dp(16)
+                    theme_bg_color: "Custom"
 
-                    # строка A — главный результат режима
                     MDLabel:
                         text: root.result_a_title
                         font_style: "Body"
@@ -252,9 +272,8 @@
                         font_style: "Headline"
                         adaptive_height: True
                         theme_text_color: "Custom"
-                        text_color: C.GREEN
+                        text_color: C.BRAND_GREEN
 
-                    # строка B — вторичный результат (может скрываться)
                     MDLabel:
                         text: root.result_b_title
                         font_style: "Body"
@@ -268,12 +287,11 @@
                         text: root.result_b_value
                         font_style: "Headline"
                         theme_text_color: "Custom"
-                        text_color: C.GREEN
+                        text_color: C.BRAND_GREEN
                         size_hint_y: None
                         height: dp(32) if root.result_b_visible else 0
                         opacity: 1 if root.result_b_visible else 0
 
-                    # совет (округление таблеток и т.п.)
                     MDLabel:
                         text: root.hint_text
                         font_style: "Body"
@@ -282,7 +300,6 @@
                         text_color: C.TEXT_SUB
                         opacity: 1 if root.hint_text else 0
 
-                # Совет под результатом
                 MDLabel:
                     text: "Совет: сверяйте результат с инструкцией к препарату. Набирайте шприц подходящего объёма; таблетку делите только если это разрешено инструкцией."
                     font_style: "Body"

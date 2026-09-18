@@ -20,6 +20,7 @@ import os
 import subprocess
 import sys
 
+from threading import Thread
 from kivy.config import Config
 
 Config.set("graphics", "width", "360")
@@ -204,10 +205,7 @@ class RubikonApp(MDApp):
 
         # --- БД: инициализация + миграция + бэкап при каждом старте ---
         db.init_db()
-        try:
-            db.backup_db()
-        except Exception:
-            pass
+        Thread(target=db.backup_db, daemon=True).start()
 
         # Старый интерфейс БД (каталог/лечение/календарь): app.db
         self.db = Database()
@@ -225,9 +223,9 @@ class RubikonApp(MDApp):
         self.nav_bar = self.root.ids.nav_bar
         self.root.remove_widget(self.nav_bar)
 
-        Clock.schedule_once(self._after_splash, 5)
+        Clock.schedule_once(self._after_splash, 10)
         # проверка напоминаний каждые 30 секунд, пока приложение запущено
-        Clock.schedule_interval(self._check_notifications, 30)
+        Clock.schedule_interval(self._check_notifications, 0.8)
 
         return self.root
 

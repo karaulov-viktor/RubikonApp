@@ -11,6 +11,7 @@
 текст написан так, чтобы минимизировать риски, но не заменяет
 юридическую консультацию.
 """
+from kivy.utils import get_hex_from_color
 from models import theme as _T
 
 LEGAL_VERSION = "13.09.2026"
@@ -33,7 +34,7 @@ LEGAL_TEXT = """[b][color={g}] 1. ХАРАКТЕР ПРИЛОЖЕНИЯ[/color][
 [b][color={g}] 6. СОГЛАСИЕ[/color][/b]
 Нажимая «Принимаю», вы подтверждаете, что ознакомлены с настоящей информацией, понимаете ознакомительный характер приложения и будете консультироваться с ветеринарным специалистом.
 
-[i]Версия текста: {version}[/i]""".format(version=LEGAL_VERSION, g=_T.GREEN)
+[i]Версия текста: {version}[/i]""".format(version=LEGAL_VERSION, g=get_hex_from_color(_T.GREEN))
 
 SHORT_DISCLAIMER = (
     "Приложение носит ознакомительный характер и не заменяет "
